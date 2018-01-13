@@ -53,7 +53,12 @@ fn validate_external_link(link: &Link, url: &Url, cfg: &Config) -> Result<(), Bo
 }
 
 fn check_link_in_book(link: &Link, ctx: &RenderContext) -> Result<(), Box<BrokenLink>> {
-    let mut path = match link.url.find('#') {
+    if link.url.starts_with('#') {
+        // this just jumps to another spot on the page
+        return Ok(());
+    }
+
+    let path = match link.url.find('#') {
         Some(ix) => Path::new(&link.url[..ix]),
         None => Path::new(&link.url),
     };

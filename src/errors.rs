@@ -164,6 +164,7 @@ impl Display for MdSuggestion {
     }
 }
 
+/// An error occurred while trying to fetch the link from the internet.
 #[derive(Debug, Fail)]
 pub struct HttpError {
     pub url: Url,

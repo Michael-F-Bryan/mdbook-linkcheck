@@ -25,13 +25,14 @@ mod links;
 pub use errors::{BrokenLink, BrokenLinks, EmptyLink, FileNotFound, HttpError, MdSuggestion,
                  UnsuccessfulStatus};
 pub use config::Config;
-pub use links::{collect_links, Link};
+pub use links::Link;
 
 use std::error::Error as StdError;
 use failure::{Error, ResultExt, SyncFailure};
 use mdbook::renderer::RenderContext;
 use mdbook::book::BookItem;
 
+use links::collect_links;
 use validation::check_link;
 
 /// The exact version of `mdbook` this crate is compiled against.
@@ -42,7 +43,7 @@ pub const MDBOOK_VERSION: &str = env!("MDBOOK_VERSION");
 /// If there were any broken links then you'll be able to downcast the `Error`
 /// returned into `BrokenLinks`.
 pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
-    info!("Checking for broken links");
+    info!("Started the link checker");
 
     let cfg = get_config(ctx)?;
 
@@ -52,7 +53,7 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
         }
     }
 
-    debug!("Finding all links");
+    info!("Scanning book for links");
     let mut links = Vec::new();
 
     for item in ctx.book.iter() {
@@ -62,7 +63,7 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
         }
     }
 
-    debug!("Found {} links", links.len());
+    info!("Found {} links in total", links.len());
     let mut errors = Vec::new();
 
     if !links.is_empty() {
@@ -96,7 +97,7 @@ fn get_config(ctx: &RenderContext) -> Result<Config, Error> {
 ///
 /// See also
 /// [withoutboats/failure:109](https://github.com/withoutboats/failure/issues/109).
-pub trait SyncResult<T, E> {
+trait SyncResult<T, E> {
     fn sync(self) -> Result<T, SyncFailure<E>>
     where
         Self: Sized,

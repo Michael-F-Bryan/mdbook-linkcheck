@@ -3,6 +3,7 @@ use pulldown_cmark::{Event, Parser, Tag};
 use memchr::Memchr;
 use mdbook::book::Chapter;
 
+/// Information about a link in one of the book's chapters.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Link<'a> {
     pub url: String,
