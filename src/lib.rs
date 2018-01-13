@@ -34,7 +34,7 @@ use mdbook::book::BookItem;
 use validation::check_link;
 
 /// The exact version of `mdbook` this crate is compiled against.
-pub const MDBOOK_VERSION: &'static str = env!("MDBOOK_VERSION");
+pub const MDBOOK_VERSION: &str = env!("MDBOOK_VERSION");
 
 /// The main entrypoint for this crate.
 ///
@@ -69,7 +69,7 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
 
     if !links.is_empty() {
         for link in &links {
-            if let Err(e) = check_link(link, &ctx, &cfg) {
+            if let Err(e) = check_link(link, ctx, &cfg) {
                 trace!("Error for {}, {}", link, e);
                 errors.push(e);
             }
@@ -86,7 +86,8 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
 /// A workaround because `error-chain` errors aren't `Sync`, yet `failure`
 /// errors are required to be.
 ///
-/// See also https://github.com/withoutboats/failure/issues/109.
+/// See also
+/// [withoutboats/failure:109](https://github.com/withoutboats/failure/issues/109).
 pub trait SyncResult<T, E> {
     fn sync(self) -> Result<T, SyncFailure<E>>
     where

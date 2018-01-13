@@ -28,7 +28,7 @@ fn main() {
             eprintln!("\tCaused By: {}", cause);
         }
 
-        if let Ok(_) = env::var("RUST_BACKTRACE") {
+        if env::var("RUST_BACKTRACE").is_ok() {
             eprintln!();
             eprintln!("{}", e.backtrace());
         }

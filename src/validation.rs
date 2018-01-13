@@ -17,12 +17,12 @@ pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), 
     }
 
     match Url::parse(&link.url) {
-        Ok(link_url) => validate_external_link(link_url, cfg),
+        Ok(link_url) => validate_external_link(&link_url, cfg),
         Err(_) => check_link_in_book(link, ctx),
     }
 }
 
-fn validate_external_link(url: Url, cfg: &Config) -> Result<(), Error> {
+fn validate_external_link(url: &Url, cfg: &Config) -> Result<(), Error> {
     if cfg.follow_web_links {
         debug!("Fetching \"{}\"", url);
 
@@ -58,7 +58,7 @@ fn check_link_in_book(link: &Link, ctx: &RenderContext) -> Result<(), Error> {
 }
 
 fn check_link_to_chapter(link: &Link, ctx: &RenderContext) -> Result<(), Error> {
-    let path = match link.url.find("#") {
+    let path = match link.url.find('#') {
         Some(ix) => &link.url[..ix],
         None => &link.url,
     };
