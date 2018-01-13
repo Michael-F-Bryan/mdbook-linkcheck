@@ -44,10 +44,7 @@ pub const MDBOOK_VERSION: &str = env!("MDBOOK_VERSION");
 pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
     info!("Checking for broken links");
 
-    let cfg: Config = ctx.config
-        .get_deserialized("output.linkcheck")
-        .sync()
-        .context("Unable to deserialize the `output.linkcheck` table. Is it in your book.toml?")?;
+    let cfg = get_config(ctx)?;
 
     if log_enabled!(::log::Level::Trace) {
         for line in format!("{:#?}", cfg).lines() {
@@ -81,6 +78,16 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
         Ok(())
     } else {
         Err(BrokenLinks(errors).into())
+    }
+}
+
+fn get_config(ctx: &RenderContext) -> Result<Config, Error> {
+    match ctx.config.get("output.linkcheck") {
+        Some(raw) => raw.clone()
+            .try_into()
+            .context("Unable to deserialize the `output.linkcheck` table.")
+            .map_err(Error::from),
+        None => Ok(Config::default()),
     }
 }
 

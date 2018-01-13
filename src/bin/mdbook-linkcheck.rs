@@ -24,8 +24,7 @@ fn main() {
 
     if let Err(e) = run(&args) {
         if let Some(broken_links) = e.downcast_ref::<BrokenLinks>() {
-            eprintln!("There were {} broken links", broken_links.0.len());
-            eprintln!();
+            eprintln!("There were {} broken links:", broken_links.0.len());
 
             for error in &broken_links.0 {
                 eprintln!("{}#{}: {}", error.chapter().display(), error.line(), error);

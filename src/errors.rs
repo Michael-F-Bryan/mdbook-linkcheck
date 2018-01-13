@@ -90,12 +90,7 @@ impl UnsuccessfulStatus {
 
 impl Display for UnsuccessfulStatus {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f,
-            "\"{}\" returned {}",
-            self.url,
-            self.code,
-        )
+        write!(f, "\"{}\" returned {}", self.url, self.code,)
     }
 }
 
@@ -126,11 +121,7 @@ impl FileNotFound {
 
 impl Display for FileNotFound {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f,
-            "\"{}\" doesn't exist",
-            self.path.display(),
-        )
+        write!(f, "\"{}\" doesn't exist", self.path.display(),)
     }
 }
 
@@ -204,8 +195,7 @@ impl Display for HttpError {
         write!(
             f,
             "There was an error while fetching \"{}\", {}",
-            self.url,
-            self.error,
+            self.url, self.error,
         )
     }
 }

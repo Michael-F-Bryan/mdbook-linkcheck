@@ -53,7 +53,10 @@ fn validate_external_link(link: &Link, url: &Url, cfg: &Config) -> Result<(), Bo
 }
 
 fn check_link_in_book(link: &Link, ctx: &RenderContext) -> Result<(), Box<BrokenLink>> {
-    let path = Path::new(&link.url);
+    let mut path = match link.url.find('#') {
+        Some(ix) => Path::new(&link.url[..ix]),
+        None => Path::new(&link.url),
+    };
 
     let extension = path.extension();
     if extension == Some(OsStr::new("md")) {
@@ -69,14 +72,19 @@ fn check_link_in_book(link: &Link, ctx: &RenderContext) -> Result<(), Box<Broken
 }
 
 fn check_link_to_chapter(link: &Link, ctx: &RenderContext) -> Result<(), Box<BrokenLink>> {
-    let path = match link.url.find('#') {
+    let mut path = match link.url.find('#') {
         Some(ix) => &link.url[..ix],
         None => &link.url,
     };
 
+    // note: all chapter links are relative to the `src/` directory regardless
+    // of whether they start with "/" or not.
+    if path.starts_with("/") {
+        path = &path[1..];
+    }
+
     let src = ctx.root.join(&ctx.config.book.src);
 
-    // note: all chapter links are relative to the `src/` directory
     let chapter_path = src.join(path).with_extension("md");
     debug!("Searching for {}", chapter_path.display());
 
