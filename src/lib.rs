@@ -1,25 +1,26 @@
 //! A `mdbook` backend which will check all links in a document are valid.
 
-extern crate mdbook;
-#[macro_use]
-extern crate log;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate log;
+extern crate mdbook;
+extern crate pulldown_cmark;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
-extern crate pulldown_cmark;
 
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
 
+use std::fmt::{self, Display, Formatter};
 use failure::Error;
-use pulldown_cmark::{Tag, Event, Parser};
+use pulldown_cmark::{Event, Parser, Tag};
 use mdbook::renderer::RenderContext;
-use mdbook::book::{BookItem, Chapter};
+use mdbook::book::{Book, BookItem, Chapter};
 
 /// The exact version of `mdbook` this crate is compiled against.
 pub const MDBOOK_VERSION: &'static str = env!("MDBOOK_VERSION");
@@ -46,16 +47,26 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
     }
 
     debug!("Found {} links", links.len());
+    let mut errors = Vec::new();
 
     if !links.is_empty() {
         for link in &links {
-            check_link(link, &cfg);
+            if let Err(e) = check_link(link, &ctx.book, &cfg) {
+                errors.push(e);
+            }
         }
     }
 
-    unimplemented!()
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(BrokenLinks(errors).into())
+    }
 }
 
+#[derive(Debug, Fail)]
+#[fail(display = "there are broken links")]
+pub struct BrokenLinks(Vec<Error>);
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
@@ -70,39 +81,66 @@ struct Link<'a> {
     chapter: &'a Chapter,
 }
 
+impl<'a> Link<'a> {
+    fn line_number(&self) -> usize {
+        if self.offset > self.chapter.content.len() {
+            panic!(
+                "Link has invalid offset. Got {} but chapter is only {} bytes long.",
+                self.offset,
+                self.chapter.content.len()
+            );
+        }
+
+        unimplemented!()
+    }
+}
+
+impl<'a> Display for Link<'a> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(
+            f,
+            "\"{}\" in {}#{}",
+            self.url,
+            self.chapter.path.display(),
+            self.line_number()
+        )
+    }
+}
+
 /// Find all the links in a particular chapter.
 fn collect_links(ch: &Chapter) -> Vec<Link> {
     let mut links = Vec::new();
     let mut parser = Parser::new(&ch.content);
 
-    while let Some(event) = parser.next() {    
+    while let Some(event) = parser.next() {
         match event {
-        Event::Start(Tag::Link(dest, _)) | Event::Start(Tag::Image(dest, _)) => {
-            let link = Link {
-                url: dest.to_string(),
-                offset: parser.get_offset(),
-                chapter: ch,
-            };
+            Event::Start(Tag::Link(dest, _)) | Event::Start(Tag::Image(dest, _)) => {
+                let link = Link {
+                    url: dest.to_string(),
+                    offset: parser.get_offset(),
+                    chapter: ch,
+                };
 
-            links.push(link);
-        }
-        _ => {}
+                trace!("Found {}", link);
+                links.push(link);
+            }
+            _ => {}
         }
     }
 
     links
 }
 
-fn check_link(link: &Link, cfg: &Config) {
+fn check_link(link: &Link, book: &Book, cfg: &Config) -> Result<(), Error> {
     unimplemented!();
 }
 
 use failure::SyncFailure;
 use std::error::Error as StdError;
 
-/// A workaround because `error-chain` errors aren't `Sync`, yet `failure` 
+/// A workaround because `error-chain` errors aren't `Sync`, yet `failure`
 /// errors are required to be.
-/// 
+///
 /// See also https://github.com/withoutboats/failure/issues/109.
 pub trait SyncResult<T, E> {
     fn sync(self) -> Result<T, SyncFailure<E>>
