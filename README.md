@@ -1,6 +1,7 @@
 # MDBook LinkCheck
 
-A backend for `mdbook` which will check your links for you.
+A backend for `mdbook` which will check your links for you. For use alongside 
+the built-in HTML renderer.
 
 
 ## Getting Started

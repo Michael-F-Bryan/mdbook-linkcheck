@@ -5,31 +5,42 @@ extern crate failure;
 #[macro_use]
 extern crate log;
 extern crate mdbook;
+extern crate memchr;
 extern crate pulldown_cmark;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
+extern crate url;
 
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
 
 use std::fmt::{self, Display, Formatter};
-use failure::Error;
+use failure::{Error, ResultExt};
 use pulldown_cmark::{Event, Parser, Tag};
+use memchr::Memchr;
 use mdbook::renderer::RenderContext;
 use mdbook::book::{Book, BookItem, Chapter};
+use url::Url;
 
 /// The exact version of `mdbook` this crate is compiled against.
 pub const MDBOOK_VERSION: &'static str = env!("MDBOOK_VERSION");
 
 /// The main entrypoint for this crate.
+///
+/// If there were any broken links then you'll be able to downcast the `Error`
+/// returned into `BrokenLinks`.
 pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
     info!("Checking for broken links");
 
-    let cfg: Config = ctx.config.get_deserialized("output.linkcheck").sync()?;
+    let cfg: Config = ctx.config
+        .get_deserialized("output.linkcheck")
+        .sync()
+        .context("Unable to deserialize the `output.linkcheck` table. Is it in your book.toml?")?;
+
     if log_enabled!(::log::Level::Trace) {
         for line in format!("{:#?}", cfg).lines() {
             trace!("{}", line);
@@ -64,9 +75,10 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
     }
 }
 
+/// The error which were generated while checking links.
 #[derive(Debug, Fail)]
 #[fail(display = "there are broken links")]
-pub struct BrokenLinks(Vec<Error>);
+pub struct BrokenLinks(pub Vec<Error>);
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
@@ -83,7 +95,8 @@ struct Link<'a> {
 
 impl<'a> Link<'a> {
     fn line_number(&self) -> usize {
-        if self.offset > self.chapter.content.len() {
+        let content = &self.chapter.content;
+        if self.offset > content.len() {
             panic!(
                 "Link has invalid offset. Got {} but chapter is only {} bytes long.",
                 self.offset,
@@ -91,7 +104,7 @@ impl<'a> Link<'a> {
             );
         }
 
-        unimplemented!()
+        Memchr::new(b'\n', content[..self.offset].as_bytes()).count() + 1
     }
 }
 
@@ -132,7 +145,25 @@ fn collect_links(ch: &Chapter) -> Vec<Link> {
 }
 
 fn check_link(link: &Link, book: &Book, cfg: &Config) -> Result<(), Error> {
-    unimplemented!();
+    trace!("Checking {}", link);
+
+    match Url::parse(&link.url) {
+        Ok(link_url) => validate_external_link(link_url, cfg),
+        Err(_) => check_link_in_book(link, book),
+    }
+}
+
+fn validate_external_link(url: Url, cfg: &Config) -> Result<(), Error> {
+    if cfg.follow_web_links {
+        unimplemented!()
+    } else {
+        debug!("Ignoring \"{}\"", url);
+        Ok(())
+    }
+}
+
+fn check_link_in_book(link: &Link, book: &Book) -> Result<(), Error> {
+    unimplemented!()
 }
 
 use failure::SyncFailure;
