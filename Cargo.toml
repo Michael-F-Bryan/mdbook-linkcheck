@@ -27,3 +27,6 @@ cargo = "0.24.0"
 
 [patch.crates-io]
 pulldown-cmark = { git = "https://github.com/google/pulldown-cmark"}
+
+[dev-dependencies]
+pretty_assertions = "0.4.1"
