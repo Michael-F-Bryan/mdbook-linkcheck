@@ -3,6 +3,7 @@ name = "mdbook-linkcheck"
 version = "0.1.0"
 authors = ["Michael Bryan <michaelfbryan@gmail.com>"]
 description = "A backend for `mdbook` which will check your links for you."
+build = "build.rs"
 
 [[bin]]
 name = "mdbook-linkcheck"
@@ -16,6 +17,13 @@ serde_derive = "1.0.27"
 failure = "0.1.1"
 serde_json = "1.0.9"
 pulldown-cmark = "0.1.0"
+structopt = "0.1.6"
+structopt-derive = "0.1.6"
+log = "0.4.1"
+env_logger = "0.5.0-rc.2"
+
+[build-dependencies]
+cargo = "0.24.0"
 
 [patch.crates-io]
 pulldown-cmark = { git = "https://github.com/google/pulldown-cmark"}
