@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate failure;
+extern crate reqwest;
 #[macro_use]
 extern crate log;
 extern crate mdbook;
@@ -24,6 +25,7 @@ use pulldown_cmark::{Event, Parser, Tag};
 use memchr::Memchr;
 use mdbook::renderer::RenderContext;
 use mdbook::book::{Book, BookItem, Chapter};
+use reqwest::StatusCode;
 use url::Url;
 
 /// The exact version of `mdbook` this crate is compiled against.
@@ -155,12 +157,26 @@ fn check_link(link: &Link, book: &Book, cfg: &Config) -> Result<(), Error> {
 
 fn validate_external_link(url: Url, cfg: &Config) -> Result<(), Error> {
     if cfg.follow_web_links {
-        unimplemented!()
+        debug!("Fetching \"{}\"",url);
+        
+        let response = reqwest::get(url.clone())?;
+        let status = response.status();
+
+        if status.is_success() {
+            Ok(())
+        } else {
+            trace!("Unsuccessful Status {} for {}", status, url);
+            Err(Error::from(UnsuccessfulStatus(status)))
+        }
     } else {
         debug!("Ignoring \"{}\"", url);
         Ok(())
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Fail)]
+#[fail(display = "{}", _0)]
+pub struct UnsuccessfulStatus(pub StatusCode);
 
 fn check_link_in_book(link: &Link, book: &Book) -> Result<(), Error> {
     unimplemented!()
