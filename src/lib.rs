@@ -22,7 +22,8 @@ mod validation;
 mod config;
 mod links;
 
-pub use errors::{BrokenLinks, EmptyLink, FileNotFound, MdSuggestion, UnsuccessfulStatus};
+pub use errors::{BrokenLink, BrokenLinks, EmptyLink, FileNotFound, HttpError, MdSuggestion,
+                 UnsuccessfulStatus};
 pub use config::Config;
 pub use links::{collect_links, Link};
 

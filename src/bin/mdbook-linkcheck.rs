@@ -16,21 +16,31 @@ use failure::{Error, ResultExt, SyncFailure};
 use structopt::StructOpt;
 use mdbook::renderer::RenderContext;
 use mdbook::MDBook;
+use mdbook_linkcheck::BrokenLinks;
 
 fn main() {
     env_logger::init();
     let args = Args::from_args();
 
     if let Err(e) = run(&args) {
-        eprintln!("Error: {}", e);
-
-        for cause in e.causes().skip(1) {
-            eprintln!("\tCaused By: {}", cause);
-        }
-
-        if env::var("RUST_BACKTRACE").is_ok() {
+        if let Some(broken_links) = e.downcast_ref::<BrokenLinks>() {
+            eprintln!("There were {} broken links", broken_links.0.len());
             eprintln!();
-            eprintln!("{}", e.backtrace());
+
+            for error in &broken_links.0 {
+                eprintln!("{}#{}: {}", error.chapter().display(), error.line(), error);
+            }
+        } else {
+            eprintln!("Error: {}", e);
+
+            for cause in e.causes().skip(1) {
+                eprintln!("\tCaused By: {}", cause);
+            }
+
+            if env::var("RUST_BACKTRACE").is_ok() {
+                eprintln!();
+                eprintln!("{}", e.backtrace());
+            }
         }
 
         process::exit(1);
