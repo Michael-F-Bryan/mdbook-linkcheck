@@ -1,0 +1,21 @@
+[package]
+name = "mdbook-linkcheck"
+version = "0.1.0"
+authors = ["Michael Bryan <michaelfbryan@gmail.com>"]
+description = "A backend for `mdbook` which will check your links for you."
+
+[[bin]]
+name = "mdbook-linkcheck"
+path = "src/bin/mdbook-linkcheck.rs"
+doc = false
+
+[dependencies]
+mdbook = { git = "https://github.com/rust-lang-nursery/mdBook" }
+serde = "1.0.27"
+serde_derive = "1.0.27"
+failure = "0.1.1"
+serde_json = "1.0.9"
+pulldown-cmark = "0.1.0"
+
+[patch.crates-io]
+pulldown-cmark = { git = "https://github.com/google/pulldown-cmark"}
