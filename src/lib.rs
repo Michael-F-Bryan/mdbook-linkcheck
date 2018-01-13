@@ -65,6 +65,7 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
     if !links.is_empty() {
         for link in &links {
             if let Err(e) = check_link(link, &ctx, &cfg) {
+                trace!("Error for {}, {}", link, e);
                 errors.push(e);
             }
         }
@@ -150,11 +151,37 @@ fn collect_links(ch: &Chapter) -> Vec<Link> {
 fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), Error> {
     trace!("Checking {}", link);
 
+    if link.url.is_empty() {
+        let err = EmptyLink::new(&link.chapter.path, link.line_number());
+        return Err(Error::from(err));
+    }
+
     match Url::parse(&link.url) {
         Ok(link_url) => validate_external_link(link_url, cfg),
         Err(_) => check_link_in_book(link, ctx),
     }
 }
+
+
+/// The user specified a file which doesn't exist.
+#[derive(Debug, Clone, PartialEq, Fail)]
+#[fail(display = "Empty Link")]
+pub struct EmptyLink {
+    chapter: PathBuf,
+    line: usize,
+}
+
+impl EmptyLink {
+    fn new<P>(chapter: P, line: usize) -> EmptyLink
+    where
+        P: Into<PathBuf>,
+    {
+        let chapter = chapter.into();
+
+        EmptyLink { chapter, line }
+    }
+}
+
 
 fn validate_external_link(url: Url, cfg: &Config) -> Result<(), Error> {
     if cfg.follow_web_links {
@@ -175,7 +202,8 @@ fn validate_external_link(url: Url, cfg: &Config) -> Result<(), Error> {
     }
 }
 
-/// Received an unsuccessful status code when fetching a resource from the 
+
+/// Received an unsuccessful status code when fetching a resource from the
 /// internet.
 #[derive(Debug, Clone, PartialEq, Fail)]
 #[fail(display = "{}", _0)]
@@ -186,15 +214,33 @@ fn check_link_in_book(link: &Link, ctx: &RenderContext) -> Result<(), Error> {
 
     let extension = path.extension();
     if extension == Some(OsStr::new("md")) {
-        // linking to a `*.md` file is an error because we don't (yet) 
+        // linking to a `*.md` file is an error because we don't (yet)
         // automatically translate these links into `*.html`.
         let err = MdSuggestion::new(path, &link.chapter.path, link.line_number());
         Err(Error::from(err))
     } else if extension == Some(OsStr::new("html")) {
-        // we're linking to another chapter
-        unimplemented!();
+        check_link_to_chapter(link, ctx)
     } else {
         check_asset_link_is_valid(link, ctx)
+    }
+}
+
+fn check_link_to_chapter(link: &Link, ctx: &RenderContext) -> Result<(), Error> {
+    let path = match link.url.find("#") {
+        Some(ix) => &link.url[..ix],
+        None => &link.url,
+    };
+
+    let src = ctx.root.join(&ctx.config.book.src);
+
+    // note: all chapter links are relative to the `src/` directory
+    let chapter_path = src.join(path).with_extension("md");
+    debug!("Searching for {}", chapter_path.display());
+
+    if chapter_path.exists() {
+        Ok(())
+    } else {
+        Err(Error::from(FileNotFound::new(path, &link.chapter.path, link.line_number())))
     }
 }
 
@@ -223,13 +269,14 @@ fn check_asset_link_is_valid(link: &Link, ctx: &RenderContext) -> Result<(), Err
     // by this point we've resolved the link relative to the source chapter's
     // directory, and turned it into an absolute path. This *should* match a
     // file on disk.
+    debug!("Searching for {}", full_path.display());
 
     match full_path.canonicalize() {
-        Err(_) => Err(Error::from(FileNotFound(path.to_path_buf()))),
+        Err(_) => Err(Error::from(FileNotFound::new(path, &link.chapter.path, link.line_number()))),
         Ok(p) => if p.exists() {
             Ok(())
         } else {
-            Err(Error::from(FileNotFound(p)))
+            Err(Error::from(FileNotFound::new(p, &link.chapter.path, link.line_number())))
         },
     }
 }
@@ -237,7 +284,24 @@ fn check_asset_link_is_valid(link: &Link, ctx: &RenderContext) -> Result<(), Err
 /// The user specified a file which doesn't exist.
 #[derive(Debug, Clone, PartialEq, Fail)]
 #[fail(display = "File Not Found")]
-pub struct FileNotFound(pub PathBuf);
+pub struct FileNotFound {
+    path: PathBuf,
+    chapter: PathBuf,
+    line: usize,
+}
+
+impl FileNotFound {
+    fn new<P, Q>(path: P, chapter: Q, line: usize) -> FileNotFound
+    where
+        P: Into<PathBuf>,
+        Q: Into<PathBuf>,
+    {
+        let path = path.into();
+        let chapter = chapter.into();
+
+        FileNotFound { path, chapter, line }
+    }
+}
 
 /// The user specified a `*.md` file when they probably meant `*.html`.
 #[derive(Debug, Clone, PartialEq, Fail)]
@@ -249,26 +313,33 @@ pub struct MdSuggestion {
 }
 
 impl MdSuggestion {
-    fn new<P, Q>(original: P, chapter: Q, line: usize) -> MdSuggestion 
-    where P: Into<PathBuf>, Q: Into<PathBuf>
+    fn new<P, Q>(original: P, chapter: Q, line: usize) -> MdSuggestion
+    where
+        P: Into<PathBuf>,
+        Q: Into<PathBuf>,
     {
         let found = original.into();
         let suggested = found.with_extension("html");
         let chapter = chapter.into();
 
         MdSuggestion {
-            found, suggested, chapter, line
+            found,
+            suggested,
+            chapter,
+            line,
         }
     }
 }
 
 impl Display for MdSuggestion {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "Found \"{}\" at {}#{}, did you mean \"{}\"?", 
-        self.found.display(),
-        self.chapter.display(),
-        self.line,
-        self.suggested.display(),
+        write!(
+            f,
+            "Found \"{}\" at {}#{}, did you mean \"{}\"?",
+            self.found.display(),
+            self.chapter.display(),
+            self.line,
+            self.suggested.display(),
         )
     }
 }
