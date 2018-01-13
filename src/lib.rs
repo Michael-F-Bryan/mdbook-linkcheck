@@ -2,29 +2,29 @@
 
 #[macro_use]
 extern crate failure;
-extern crate reqwest;
 #[macro_use]
 extern crate log;
 extern crate mdbook;
 extern crate memchr;
 extern crate pulldown_cmark;
+extern crate reqwest;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate serde_json;
 extern crate url;
 
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
 
+use std::path::{Path, PathBuf};
 use std::fmt::{self, Display, Formatter};
+use std::ffi::OsStr;
 use failure::{Error, ResultExt};
 use pulldown_cmark::{Event, Parser, Tag};
 use memchr::Memchr;
 use mdbook::renderer::RenderContext;
-use mdbook::book::{Book, BookItem, Chapter};
+use mdbook::book::{BookItem, Chapter};
 use reqwest::StatusCode;
 use url::Url;
 
@@ -64,7 +64,7 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
 
     if !links.is_empty() {
         for link in &links {
-            if let Err(e) = check_link(link, &ctx.book, &cfg) {
+            if let Err(e) = check_link(link, &ctx, &cfg) {
                 errors.push(e);
             }
         }
@@ -82,6 +82,7 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
 #[fail(display = "there are broken links")]
 pub struct BrokenLinks(pub Vec<Error>);
 
+/// The configuration options available with this backend.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
 pub struct Config {
@@ -146,19 +147,19 @@ fn collect_links(ch: &Chapter) -> Vec<Link> {
     links
 }
 
-fn check_link(link: &Link, book: &Book, cfg: &Config) -> Result<(), Error> {
+fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), Error> {
     trace!("Checking {}", link);
 
     match Url::parse(&link.url) {
         Ok(link_url) => validate_external_link(link_url, cfg),
-        Err(_) => check_link_in_book(link, book),
+        Err(_) => check_link_in_book(link, ctx),
     }
 }
 
 fn validate_external_link(url: Url, cfg: &Config) -> Result<(), Error> {
     if cfg.follow_web_links {
-        debug!("Fetching \"{}\"",url);
-        
+        debug!("Fetching \"{}\"", url);
+
         let response = reqwest::get(url.clone())?;
         let status = response.status();
 
@@ -174,12 +175,102 @@ fn validate_external_link(url: Url, cfg: &Config) -> Result<(), Error> {
     }
 }
 
+/// Received an unsuccessful status code when fetching a resource from the 
+/// internet.
 #[derive(Debug, Clone, PartialEq, Fail)]
 #[fail(display = "{}", _0)]
 pub struct UnsuccessfulStatus(pub StatusCode);
 
-fn check_link_in_book(link: &Link, book: &Book) -> Result<(), Error> {
-    unimplemented!()
+fn check_link_in_book(link: &Link, ctx: &RenderContext) -> Result<(), Error> {
+    let path = Path::new(&link.url);
+
+    let extension = path.extension();
+    if extension == Some(OsStr::new("md")) {
+        // linking to a `*.md` file is an error because we don't (yet) 
+        // automatically translate these links into `*.html`.
+        let err = MdSuggestion::new(path, &link.chapter.path, link.line_number());
+        Err(Error::from(err))
+    } else if extension == Some(OsStr::new("html")) {
+        // we're linking to another chapter
+        unimplemented!();
+    } else {
+        check_asset_link_is_valid(link, ctx)
+    }
+}
+
+/// Check the link is to a valid asset inside the book's `src/` directory. The
+/// HTML renderer will copy this to the destination directory accordingly.
+fn check_asset_link_is_valid(link: &Link, ctx: &RenderContext) -> Result<(), Error> {
+    let path = Path::new(&link.url);
+    let src = ctx.root.join(&ctx.config.book.src);
+
+    debug_assert!(
+        src.is_absolute(),
+        "mdbook didn't give us the book root's absolute path"
+    );
+
+    let full_path = if path.is_absolute() {
+        src.join(&path)
+    } else {
+        let directory = match link.chapter.path.parent() {
+            Some(parent) => src.join(parent),
+            None => src.clone(),
+        };
+
+        directory.join(&path)
+    };
+
+    // by this point we've resolved the link relative to the source chapter's
+    // directory, and turned it into an absolute path. This *should* match a
+    // file on disk.
+
+    match full_path.canonicalize() {
+        Err(_) => Err(Error::from(FileNotFound(path.to_path_buf()))),
+        Ok(p) => if p.exists() {
+            Ok(())
+        } else {
+            Err(Error::from(FileNotFound(p)))
+        },
+    }
+}
+
+/// The user specified a file which doesn't exist.
+#[derive(Debug, Clone, PartialEq, Fail)]
+#[fail(display = "File Not Found")]
+pub struct FileNotFound(pub PathBuf);
+
+/// The user specified a `*.md` file when they probably meant `*.html`.
+#[derive(Debug, Clone, PartialEq, Fail)]
+pub struct MdSuggestion {
+    found: PathBuf,
+    suggested: PathBuf,
+    chapter: PathBuf,
+    line: usize,
+}
+
+impl MdSuggestion {
+    fn new<P, Q>(original: P, chapter: Q, line: usize) -> MdSuggestion 
+    where P: Into<PathBuf>, Q: Into<PathBuf>
+    {
+        let found = original.into();
+        let suggested = found.with_extension("html");
+        let chapter = chapter.into();
+
+        MdSuggestion {
+            found, suggested, chapter, line
+        }
+    }
+}
+
+impl Display for MdSuggestion {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "Found \"{}\" at {}#{}, did you mean \"{}\"?", 
+        self.found.display(),
+        self.chapter.display(),
+        self.line,
+        self.suggested.display(),
+        )
+    }
 }
 
 use failure::SyncFailure;
