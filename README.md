@@ -5,19 +5,13 @@ the built-in HTML renderer.
 
 > **Warning:** Not 100% complete. May eat your laundry!
 
+
 ## Getting Started
 
-Because alternate backends are still experimental, you need to install `mdbook`
-directly from source instead of from crates.io.
+First you'll need to install `mdbook-linkcheck`.
 
 ```
-$ cargo install --git https://github.com/rust-lang-nursery/mdBook
-```
-
-Then you can install `mdbook-linkcheck` (also from source).
-
-```
-$ cargo install --git https://github.com/Michael-F-Bryan/mdbook-linkcheck
+$ cargo install mdbook-linkcheck
 ```
 
 Next you'll need to update your `book.toml` to let `mdbook` know it needs to 
