@@ -27,6 +27,7 @@ env_logger = "0.5.0-rc.2"
 memchr = "2.0.1"
 url = "1.6.0"
 reqwest = "0.8.2"
+rayon = "1.0"
 
 [build-dependencies]
 cargo = "0.24.0"

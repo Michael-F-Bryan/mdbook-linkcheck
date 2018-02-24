@@ -7,6 +7,7 @@ extern crate log;
 extern crate mdbook;
 extern crate memchr;
 extern crate pulldown_cmark;
+extern crate rayon;
 extern crate reqwest;
 extern crate serde;
 #[macro_use]
@@ -31,6 +32,7 @@ use std::error::Error as StdError;
 use failure::{Error, ResultExt, SyncFailure};
 use mdbook::renderer::RenderContext;
 use mdbook::book::BookItem;
+use rayon::prelude::*;
 
 use links::collect_links;
 use validation::check_link;
@@ -53,6 +55,8 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
         }
     }
 
+    rayon::ThreadPoolBuilder::new().num_threads(6).build_global().unwrap();
+
     info!("Scanning book for links");
     let mut links = Vec::new();
 
@@ -64,16 +68,13 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
     }
 
     info!("Found {} links in total", links.len());
-    let mut errors = Vec::new();
 
-    if !links.is_empty() {
-        for link in &links {
-            if let Err(e) = check_link(link, ctx, &cfg) {
-                trace!("Error for {}, {}", link, e);
-                errors.push(e);
-            }
+    let errors: Vec<_> = links.par_iter().filter_map(|link| {
+        match check_link(link, ctx, &cfg) {
+            Ok(_) => None,
+            Err(e) => Some(e)
         }
-    }
+    }).collect();
 
     if errors.is_empty() {
         Ok(())
