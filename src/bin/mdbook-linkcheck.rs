@@ -58,7 +58,8 @@ fn run(args: &Args) -> Result<(), Error> {
         let destination = md.build_dir_for("epub");
 
         RenderContext {
-            version: mdbook_linkcheck::MDBOOK_VERSION.to_string(),
+            // TODO: Pull this from mdbook instead of hard-coding
+            version: String::from("0.1.3"),
             root: md.root,
             book: md.book,
             config: md.config,

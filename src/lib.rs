@@ -35,9 +35,6 @@ use mdbook::book::BookItem;
 use links::collect_links;
 use validation::check_link;
 
-/// The exact version of `mdbook` this crate is compiled against.
-pub const MDBOOK_VERSION: &str = env!("MDBOOK_VERSION");
-
 /// The main entrypoint for this crate.
 ///
 /// If there were any broken links then you'll be able to downcast the `Error`

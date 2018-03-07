@@ -3,7 +3,6 @@ name = "mdbook-linkcheck"
 version = "0.1.1-alpha.0"
 authors = ["Michael Bryan <michaelfbryan@gmail.com>"]
 description = "A backend for `mdbook` which will check your links for you."
-build = "build.rs"
 license = "MIT"
 documentation = "https://docs.rs/mdbook-linkcheck"
 repository = "https://github.com/Michael-F-Bryan/mdbook-linkcheck"
@@ -27,9 +26,6 @@ env_logger = "0.5.0-rc.2"
 memchr = "2.0.1"
 url = "1.6.0"
 reqwest = "0.8.2"
-
-[build-dependencies]
-cargo = "0.24.0"
 
 [dev-dependencies]
 pretty_assertions = "0.4.1"
