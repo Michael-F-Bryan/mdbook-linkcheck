@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn find_links_in_chapter() {
         let src = "[Reference other chapter](index.html) and [Google](https://google.com)";
-        let ch = Chapter::new("Foo", src.to_string(), "index.md");
+        let ch = Chapter::new("Foo", src.to_string(), "index.md", Vec::new());
 
         let should_be = vec![
             Link {

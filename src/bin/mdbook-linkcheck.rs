@@ -4,9 +4,8 @@ extern crate mdbook;
 extern crate mdbook_linkcheck;
 extern crate pulldown_cmark;
 extern crate serde_json;
-extern crate structopt;
 #[macro_use]
-extern crate structopt_derive;
+extern crate structopt;
 
 use std::io;
 use std::env;
