@@ -1,6 +1,6 @@
 # MDBook LinkCheck
 
-A backend for `mdbook` which will check your links for you. For use alongside 
+A backend for `mdbook` which will check your links for you. For use alongside
 the built-in HTML renderer.
 
 > **Warning:** Not 100% complete. May eat your laundry!
@@ -14,7 +14,7 @@ First you'll need to install `mdbook-linkcheck`.
 $ cargo install mdbook-linkcheck
 ```
 
-Next you'll need to update your `book.toml` to let `mdbook` know it needs to 
+Next you'll need to update your `book.toml` to let `mdbook` know it needs to
 use the `mdbook-linkcheck` backend.
 
 ```toml
@@ -33,3 +33,23 @@ should *Just Work*.
 ```
 $ mdbook build
 ```
+
+## Configuration
+
+The link checker's behaviour can be configured by setting options under the
+`output.linkcheck` table in your `book.toml`.
+
+```toml
+...
+
+[output.linkcheck]
+# Should we check links on the internet? Enabling this option adds a
+# non-negligible performance impact
+follow-web-links = false
+
+# Are we allowed to link to files outside of the book's root directory? This
+# may help prevent linking to sensitive files (e.g. "../../../../etc/shadow")
+traverse-parent-directories = false
+```
+
+

@@ -1,7 +1,7 @@
-use std::fmt::{self, Display, Formatter};
-use pulldown_cmark::{Event, Parser, Tag};
-use memchr::Memchr;
 use mdbook::book::Chapter;
+use memchr::Memchr;
+use pulldown_cmark::{Event, Parser, Tag};
+use std::fmt::{self, Display, Formatter};
 
 /// Information about a link in one of the book's chapters.
 #[derive(Debug, Clone, PartialEq)]

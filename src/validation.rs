@@ -69,7 +69,7 @@ fn check_link_in_book(
         None => Path::new(&link.url),
     };
 
-    if !cfg.can_traverse_parent_directories
+    if !cfg.traverse_parent_directories
         && path_is_outside_book(path, &absolute_chapter_path, &ctx.source_dir())
     {
         return Err(Box::new(ForbiddenPath::new(

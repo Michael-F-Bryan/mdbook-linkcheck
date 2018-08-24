@@ -77,7 +77,7 @@ fn run_link_checker(root: &Path) -> Result<(), Error> {
         "output.linkcheck",
         Config {
             follow_web_links: true,
-            can_traverse_parent_directories: false,
+            traverse_parent_directories: false,
         },
     ).unwrap();
 
