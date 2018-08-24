@@ -17,20 +17,19 @@ extern crate url;
 #[macro_use]
 extern crate pretty_assertions;
 
-mod errors;
-mod validation;
 mod config;
+pub mod errors;
 mod links;
+mod validation;
 
-pub use errors::{BrokenLink, BrokenLinks, EmptyLink, FileNotFound, HttpError, MdSuggestion,
-                 UnsuccessfulStatus};
 pub use config::Config;
 pub use links::Link;
 
-use std::error::Error as StdError;
+use errors::BrokenLinks;
 use failure::{Error, ResultExt, SyncFailure};
+use mdbook::book::{Book, BookItem};
 use mdbook::renderer::RenderContext;
-use mdbook::book::BookItem;
+use std::error::Error as StdError;
 
 use links::collect_links;
 use validation::check_link;
@@ -51,37 +50,46 @@ pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
     }
 
     info!("Scanning book for links");
+    let links = all_links(&ctx.book);
+
+    info!("Found {} links in total", links.len());
+    validate_links(&links, ctx, &cfg).map_err(Error::from)
+}
+
+fn all_links(book: &Book) -> Vec<Link> {
     let mut links = Vec::new();
 
-    for item in ctx.book.iter() {
+    for item in book.iter() {
         if let BookItem::Chapter(ref ch) = *item {
             let found = collect_links(ch);
             links.extend(found);
         }
     }
 
-    info!("Found {} links in total", links.len());
+    links
+}
+
+fn validate_links(links: &[Link], ctx: &RenderContext, cfg: &Config) -> Result<(), BrokenLinks> {
     let mut errors = Vec::new();
 
-    if !links.is_empty() {
-        for link in &links {
-            if let Err(e) = check_link(link, ctx, &cfg) {
-                trace!("Error for {}, {}", link, e);
-                errors.push(e);
-            }
+    for link in links {
+        if let Err(e) = check_link(link, ctx, &cfg) {
+            trace!("Error for {}, {}", link, e);
+            errors.push(e);
         }
     }
 
     if errors.is_empty() {
         Ok(())
     } else {
-        Err(BrokenLinks(errors).into())
+        Err(BrokenLinks::new(errors))
     }
 }
 
 fn get_config(ctx: &RenderContext) -> Result<Config, Error> {
     match ctx.config.get("output.linkcheck") {
-        Some(raw) => raw.clone()
+        Some(raw) => raw
+            .clone()
             .try_into()
             .context("Unable to deserialize the `output.linkcheck` table.")
             .map_err(Error::from),

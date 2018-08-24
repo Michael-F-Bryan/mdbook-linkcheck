@@ -1,13 +1,62 @@
-use std::path::{Path, PathBuf};
-use std::fmt::{self, Display, Formatter};
-use reqwest::StatusCode;
 use failure::{Error, Fail};
+use reqwest::StatusCode;
+use std::fmt::{self, Display, Formatter};
+use std::path::{Path, PathBuf};
 use url::Url;
 
 /// The error which were generated while checking links.
 #[derive(Debug, Fail)]
 #[fail(display = "there are broken links")]
-pub struct BrokenLinks(pub Vec<Box<BrokenLink>>);
+pub struct BrokenLinks(Vec<Box<BrokenLink>>);
+
+impl BrokenLinks {
+    pub(crate) fn new<I>(broken_links: I) -> BrokenLinks
+    where
+        I: IntoIterator<Item = Box<BrokenLink>>,
+    {
+        BrokenLinks(broken_links.into_iter().collect())
+    }
+
+    pub fn links(&self) -> &[Box<BrokenLink>] {
+        &self.0
+    }
+}
+
+impl IntoIterator for BrokenLinks {
+    type Item = Box<BrokenLink>;
+    type IntoIter = <Vec<Self::Item> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+pub struct Links<'a> {
+    parent: &'a BrokenLinks,
+    cursor: usize,
+}
+
+impl<'a> Iterator for Links<'a> {
+    type Item = &'a BrokenLink;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.parent.0.get(self.cursor).map(|b| &**b);
+        self.cursor += 1;
+        item
+    }
+}
+
+impl<'a> IntoIterator for &'a BrokenLinks {
+    type Item = &'a BrokenLink;
+    type IntoIter = Links<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Links {
+            parent: self,
+            cursor: 0,
+        }
+    }
+}
 
 /// Some arbitrary broken link which occurs at a specific line in a chapter. The
 /// `Display` impl should state why the link is "broken".
@@ -29,7 +78,7 @@ macro_rules! impl_broken_link {
                 &self.chapter
             }
         }
-    }
+    };
 }
 
 impl_broken_link!(EmptyLink);

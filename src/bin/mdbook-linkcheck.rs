@@ -10,7 +10,7 @@ extern crate structopt;
 use failure::{Error, ResultExt, SyncFailure};
 use mdbook::renderer::RenderContext;
 use mdbook::MDBook;
-use mdbook_linkcheck::BrokenLinks;
+use mdbook_linkcheck::errors::BrokenLinks;
 use std::env;
 use std::io;
 use std::path::PathBuf;
@@ -23,13 +23,13 @@ fn main() {
 
     if let Err(e) = run(&args) {
         if let Some(broken_links) = e.downcast_ref::<BrokenLinks>() {
-            if broken_links.0.len() == 1 {
+            if broken_links.links().len() == 1 {
                 eprintln!("There was 1 broken link:");
             } else {
-                eprintln!("There were {} broken links:", broken_links.0.len());
+                eprintln!("There were {} broken links:", broken_links.links().len());
             }
 
-            for error in &broken_links.0 {
+            for error in broken_links {
                 eprintln!("{}#{}: {}", error.chapter().display(), error.line(), error);
             }
         } else {
