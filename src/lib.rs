@@ -19,7 +19,7 @@ extern crate url;
 #[macro_use]
 extern crate pretty_assertions;
 
-pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "0.2";
+pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.2.0";
 
 mod config;
 pub mod errors;

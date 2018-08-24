@@ -4,7 +4,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 use url::Url;
 
-use errors::{BrokenLink, EmptyLink, FileNotFound, HttpError, MdSuggestion, UnsuccessfulStatus};
+use errors::{BrokenLink, EmptyLink, FileNotFound, HttpError, UnsuccessfulStatus};
 use {Config, Link};
 
 pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), Box<BrokenLink>> {
@@ -63,13 +63,7 @@ fn check_link_in_book(link: &Link, ctx: &RenderContext) -> Result<(), Box<Broken
         None => Path::new(&link.url),
     };
 
-    let extension = path.extension();
-    if extension == Some(OsStr::new("md")) {
-        // linking to a `*.md` file is an error because we don't (yet)
-        // automatically translate these links into `*.html`.
-        let err = MdSuggestion::new(path, &link.chapter.path, link.line_number());
-        Err(Box::new(err))
-    } else if extension == Some(OsStr::new("html")) {
+    if path.extension() == Some(OsStr::new("html")) {
         check_link_to_chapter(link, ctx)
     } else {
         check_asset_link_is_valid(link, ctx)

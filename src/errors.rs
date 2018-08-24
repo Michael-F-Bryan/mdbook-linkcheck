@@ -97,7 +97,6 @@ macro_rules! impl_broken_link {
 impl_broken_link!(EmptyLink);
 impl_broken_link!(FileNotFound);
 impl_broken_link!(HttpError);
-impl_broken_link!(MdSuggestion);
 impl_broken_link!(UnsuccessfulStatus);
 
 /// The user specified a file which doesn't exist.
@@ -184,45 +183,6 @@ impl FileNotFound {
 impl Display for FileNotFound {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "\"{}\" doesn't exist", self.path.display(),)
-    }
-}
-
-/// The user specified a `*.md` file when they probably meant `*.html`.
-#[derive(Debug, Clone, PartialEq, Fail)]
-pub struct MdSuggestion {
-    pub found: PathBuf,
-    pub suggested: PathBuf,
-    pub chapter: PathBuf,
-    pub line: usize,
-}
-
-impl MdSuggestion {
-    pub(crate) fn new<P, Q>(original: P, chapter: Q, line: usize) -> MdSuggestion
-    where
-        P: Into<PathBuf>,
-        Q: Into<PathBuf>,
-    {
-        let found = original.into();
-        let suggested = found.with_extension("html");
-        let chapter = chapter.into();
-
-        MdSuggestion {
-            found,
-            suggested,
-            chapter,
-            line,
-        }
-    }
-}
-
-impl Display for MdSuggestion {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Found \"{}\", did you mean \"{}\"?",
-            self.found.display(),
-            self.suggested.display(),
-        )
     }
 }
 

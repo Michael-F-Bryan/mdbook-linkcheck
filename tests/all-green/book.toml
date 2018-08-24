@@ -1,0 +1,5 @@
+[book]
+authors = ["Michael Bryan"]
+multilingual = false
+src = "src"
+title = "All Green"
