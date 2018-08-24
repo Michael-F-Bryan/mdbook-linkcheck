@@ -11,6 +11,7 @@ extern crate reqwest;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate rayon;
 extern crate url;
 
 #[cfg(test)]
@@ -29,6 +30,7 @@ use errors::BrokenLinks;
 use failure::{Error, ResultExt, SyncFailure};
 use mdbook::book::{Book, BookItem};
 use mdbook::renderer::RenderContext;
+use rayon::prelude::*;
 use std::error::Error as StdError;
 
 use links::collect_links;
@@ -70,19 +72,16 @@ fn all_links(book: &Book) -> Vec<Link> {
 }
 
 fn validate_links(links: &[Link], ctx: &RenderContext, cfg: &Config) -> Result<(), BrokenLinks> {
-    let mut errors = Vec::new();
+    let broken_links: BrokenLinks = links
+        .into_par_iter()
+        .map(|l| check_link(l, ctx, &cfg))
+        .filter_map(|result| result.err())
+        .collect();
 
-    for link in links {
-        if let Err(e) = check_link(link, ctx, &cfg) {
-            trace!("Error for {}, {}", link, e);
-            errors.push(e);
-        }
-    }
-
-    if errors.is_empty() {
+    if broken_links.links().is_empty() {
         Ok(())
     } else {
-        Err(BrokenLinks::new(errors))
+        Err(broken_links)
     }
 }
 

@@ -1,6 +1,8 @@
 use failure::{Error, Fail};
+use rayon::iter::{FromParallelIterator, IntoParallelIterator};
 use reqwest::StatusCode;
 use std::fmt::{self, Display, Formatter};
+use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 use url::Url;
 
@@ -10,15 +12,23 @@ use url::Url;
 pub struct BrokenLinks(Vec<Box<BrokenLink>>);
 
 impl BrokenLinks {
-    pub(crate) fn new<I>(broken_links: I) -> BrokenLinks
-    where
-        I: IntoIterator<Item = Box<BrokenLink>>,
-    {
-        BrokenLinks(broken_links.into_iter().collect())
-    }
-
     pub fn links(&self) -> &[Box<BrokenLink>] {
         &self.0
+    }
+}
+
+impl FromParallelIterator<Box<BrokenLink>> for BrokenLinks {
+    fn from_par_iter<I>(par_iter: I) -> Self
+    where
+        I: IntoParallelIterator<Item = Box<BrokenLink>>,
+    {
+        BrokenLinks(Vec::from_par_iter(par_iter))
+    }
+}
+
+impl FromIterator<Box<BrokenLink>> for BrokenLinks {
+    fn from_iter<I: IntoIterator<Item = Box<BrokenLink>>>(it: I) -> BrokenLinks {
+        BrokenLinks(it.into_iter().collect())
     }
 }
 

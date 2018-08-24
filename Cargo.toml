@@ -29,6 +29,7 @@ env_logger = "0.5"
 memchr = "2.0"
 url = "1.6"
 reqwest = "0.8"
+rayon = "1.0.2"
 
 [dev-dependencies]
 pretty_assertions = "0.5"
