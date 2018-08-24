@@ -78,6 +78,7 @@ pub trait BrokenLink: Fail {
     fn chapter(&self) -> &Path;
     /// The line this error occurred on.
     fn line(&self) -> usize;
+    fn as_fail(&self) -> &Fail;
 }
 
 macro_rules! impl_broken_link {
@@ -90,6 +91,10 @@ macro_rules! impl_broken_link {
             fn chapter(&self) -> &Path {
                 &self.chapter
             }
+
+            fn as_fail(&self) -> &Fail {
+                self
+            }
         }
     };
 }
@@ -98,6 +103,7 @@ impl_broken_link!(EmptyLink);
 impl_broken_link!(FileNotFound);
 impl_broken_link!(HttpError);
 impl_broken_link!(UnsuccessfulStatus);
+impl_broken_link!(ForbiddenPath);
 
 /// The user specified a file which doesn't exist.
 #[derive(Debug, Clone, PartialEq, Fail)]
@@ -219,6 +225,40 @@ impl Display for HttpError {
             f,
             "There was an error while fetching \"{}\", {}",
             self.url, self.error,
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Fail)]
+pub struct ForbiddenPath {
+    pub path: PathBuf,
+    pub chapter: PathBuf,
+    pub line: usize,
+}
+
+impl ForbiddenPath {
+    pub(crate) fn new<P, Q>(path: P, chapter: Q, line: usize) -> ForbiddenPath
+    where
+        P: Into<PathBuf>,
+        Q: Into<PathBuf>,
+    {
+        let path = path.into();
+        let chapter = chapter.into();
+
+        ForbiddenPath {
+            path,
+            chapter,
+            line,
+        }
+    }
+}
+
+impl Display for ForbiddenPath {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(
+            f,
+            "\"{}\" goes outside the book's source directory",
+            self.path.display(),
         )
     }
 }

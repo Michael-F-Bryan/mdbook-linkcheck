@@ -6,4 +6,6 @@ pub struct Config {
     /// if it's valid? Defaults to `false` because this has a big performance
     /// impact.
     pub follow_web_links: bool,
+    /// Are we allowed to link to files outside of the book's source directory?
+    pub can_traverse_parent_directories: bool,
 }

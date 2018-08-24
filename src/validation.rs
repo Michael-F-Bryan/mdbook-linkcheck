@@ -4,7 +4,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 use url::Url;
 
-use errors::{BrokenLink, EmptyLink, FileNotFound, HttpError, UnsuccessfulStatus};
+use errors::{BrokenLink, EmptyLink, FileNotFound, ForbiddenPath, HttpError, UnsuccessfulStatus};
 use {Config, Link};
 
 pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), Box<BrokenLink>> {
@@ -17,7 +17,7 @@ pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), 
 
     match Url::parse(&link.url) {
         Ok(link_url) => validate_external_link(link, &link_url, cfg),
-        Err(_) => check_link_in_book(link, ctx),
+        Err(_) => check_link_in_book(link, ctx, cfg),
     }
 }
 
@@ -52,22 +52,52 @@ fn validate_external_link(link: &Link, url: &Url, cfg: &Config) -> Result<(), Bo
     }
 }
 
-fn check_link_in_book(link: &Link, ctx: &RenderContext) -> Result<(), Box<BrokenLink>> {
+fn check_link_in_book(
+    link: &Link,
+    ctx: &RenderContext,
+    cfg: &Config,
+) -> Result<(), Box<BrokenLink>> {
     if link.url.starts_with('#') {
         // this just jumps to another spot on the page
         return Ok(());
     }
+
+    let absolute_chapter_path = ctx.source_dir().join(&link.chapter.path);
 
     let path = match link.url.find('#') {
         Some(ix) => Path::new(&link.url[..ix]),
         None => Path::new(&link.url),
     };
 
+    if !cfg.can_traverse_parent_directories
+        && path_is_outside_book(path, &absolute_chapter_path, &ctx.source_dir())
+    {
+        return Err(Box::new(ForbiddenPath::new(
+            path,
+            &link.chapter.path,
+            link.line_number(),
+        )));
+    }
+
     if path.extension() == Some(OsStr::new("html")) {
         check_link_to_chapter(link, ctx)
     } else {
         check_asset_link_is_valid(link, ctx)
     }
+}
+
+fn path_is_outside_book(path: &Path, chapter: &Path, src: &Path) -> bool {
+    let chapter_dir = match chapter.parent() {
+        Some(p) => p,
+        None => return false,
+    };
+
+    let joined = match chapter_dir.join(path).canonicalize() {
+        Ok(j) => j,
+        Err(_) => return false,
+    };
+
+    !joined.starts_with(&src)
 }
 
 fn check_link_to_chapter(link: &Link, ctx: &RenderContext) -> Result<(), Box<BrokenLink>> {
