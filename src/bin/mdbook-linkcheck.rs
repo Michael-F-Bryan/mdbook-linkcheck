@@ -7,15 +7,15 @@ extern crate serde_json;
 #[macro_use]
 extern crate structopt;
 
-use std::io;
-use std::env;
-use std::process;
-use std::path::PathBuf;
 use failure::{Error, ResultExt, SyncFailure};
-use structopt::StructOpt;
 use mdbook::renderer::RenderContext;
 use mdbook::MDBook;
 use mdbook_linkcheck::BrokenLinks;
+use std::env;
+use std::io;
+use std::path::PathBuf;
+use std::process;
+use structopt::StructOpt;
 
 fn main() {
     env_logger::init();
@@ -35,7 +35,7 @@ fn main() {
         } else {
             eprintln!("Error: {}", e);
 
-            for cause in e.causes().skip(1) {
+            for cause in e.iter_chain() {
                 eprintln!("\tCaused By: {}", cause);
             }
 
@@ -75,9 +75,16 @@ fn run(args: &Args) -> Result<(), Error> {
 
 #[derive(Debug, Clone, StructOpt)]
 struct Args {
-    #[structopt(short = "s", long = "standalone",
-                help = "Run standalone (i.e. not as a mdbook plugin)")]
+    #[structopt(
+        short = "s",
+        long = "standalone",
+        help = "Run standalone (i.e. not as a mdbook plugin)"
+    )]
     standalone: bool,
-    #[structopt(help = "The book to render.", parse(from_os_str), default_value = ".")]
+    #[structopt(
+        help = "The book to render.",
+        parse(from_os_str),
+        default_value = "."
+    )]
     root: PathBuf,
 }

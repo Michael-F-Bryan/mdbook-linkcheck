@@ -17,7 +17,7 @@ path = "src/bin/mdbook-linkcheck.rs"
 doc = false
 
 [dependencies]
-mdbook = "0.1.4"
+mdbook = "0.2"
 serde = "1.0"
 serde_derive = "1.0"
 failure = "0.1"
