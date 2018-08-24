@@ -17,7 +17,7 @@ path = "src/bin/mdbook-linkcheck.rs"
 doc = false
 
 [dependencies]
-mdbook = "0.2"
+mdbook = { version = "0.2", default-features = false }
 serde = "1.0"
 serde_derive = "1.0"
 failure = "0.1"
@@ -30,6 +30,7 @@ memchr = "2.0"
 url = "1.6"
 reqwest = "0.8"
 rayon = "1.0.2"
+semver = "0.9.0"
 
 [dev-dependencies]
 pretty_assertions = "0.5"

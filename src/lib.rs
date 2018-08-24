@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate failure;
+extern crate semver;
 #[macro_use]
 extern crate log;
 extern crate mdbook;
@@ -18,6 +19,8 @@ extern crate url;
 #[macro_use]
 extern crate pretty_assertions;
 
+pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "0.2";
+
 mod config;
 pub mod errors;
 mod links;
@@ -31,6 +34,7 @@ use failure::{Error, ResultExt, SyncFailure};
 use mdbook::book::{Book, BookItem};
 use mdbook::renderer::RenderContext;
 use rayon::prelude::*;
+use semver::{Version, VersionReq};
 use std::error::Error as StdError;
 
 use links::collect_links;
@@ -42,6 +46,8 @@ use validation::check_link;
 /// returned into `BrokenLinks`.
 pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
     info!("Started the link checker");
+
+    version_check(ctx)?;
 
     let cfg = get_config(ctx)?;
 
@@ -93,6 +99,21 @@ fn get_config(ctx: &RenderContext) -> Result<Config, Error> {
             .context("Unable to deserialize the `output.linkcheck` table.")
             .map_err(Error::from),
         None => Ok(Config::default()),
+    }
+}
+
+fn version_check(ctx: &RenderContext) -> Result<(), Error> {
+    let compat = VersionReq::parse(COMPATIBLE_MDBOOK_VERSIONS)?;
+    let mdbook_version = Version::parse(&ctx.version)?;
+
+    if compat.matches(&mdbook_version) {
+        Ok(())
+    } else {
+        let msg = format!(
+            "mdbook-linkcheck is compatible with versions {}, but found {}",
+            compat, mdbook_version
+        );
+        Err(failure::err_msg(msg))
     }
 }
 

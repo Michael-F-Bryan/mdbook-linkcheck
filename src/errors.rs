@@ -41,6 +41,9 @@ impl IntoIterator for BrokenLinks {
     }
 }
 
+/// An iterator over all the links in [`BrokenLinks`].
+///
+/// [`BrokenLinks`]: struct.BrokenLinks.html
 pub struct Links<'a> {
     parent: &'a BrokenLinks,
     cursor: usize,

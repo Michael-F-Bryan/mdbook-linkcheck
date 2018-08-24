@@ -1,8 +1,8 @@
-use std::path::Path;
-use std::ffi::OsStr;
 use mdbook::renderer::RenderContext;
-use url::Url;
 use reqwest;
+use std::ffi::OsStr;
+use std::path::Path;
+use url::Url;
 
 use errors::{BrokenLink, EmptyLink, FileNotFound, HttpError, MdSuggestion, UnsuccessfulStatus};
 use {Config, Link};
@@ -22,33 +22,33 @@ pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), 
 }
 
 fn validate_external_link(link: &Link, url: &Url, cfg: &Config) -> Result<(), Box<BrokenLink>> {
-    if cfg.follow_web_links {
-        debug!("Fetching \"{}\"", url);
-
-        let response = reqwest::get(url.clone()).map_err(|e| {
-            Box::new(HttpError::new(
-                url.clone(),
-                link.chapter.path.clone(),
-                link.line_number(),
-                e,
-            )) as Box<BrokenLink>
-        })?;
-        let status = response.status();
-
-        if status.is_success() {
-            Ok(())
-        } else {
-            trace!("Unsuccessful Status {} for {}", status, url);
-            Err(Box::new(UnsuccessfulStatus::new(
-                url.clone(),
-                status,
-                link.chapter.path.clone(),
-                link.line_number(),
-            )))
-        }
-    } else {
+    if !cfg.follow_web_links {
         debug!("Ignoring \"{}\"", url);
+        return Ok(());
+    }
+
+    debug!("Fetching \"{}\"", url);
+
+    let response = reqwest::get(url.clone()).map_err(|e| {
+        Box::new(HttpError::new(
+            url.clone(),
+            link.chapter.path.clone(),
+            link.line_number(),
+            e,
+        )) as Box<BrokenLink>
+    })?;
+    let status = response.status();
+
+    if status.is_success() {
         Ok(())
+    } else {
+        trace!("Unsuccessful Status {} for {}", status, url);
+        Err(Box::new(UnsuccessfulStatus::new(
+            url.clone(),
+            status,
+            link.chapter.path.clone(),
+            link.line_number(),
+        )))
     }
 }
 
