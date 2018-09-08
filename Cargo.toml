@@ -8,9 +8,6 @@ documentation = "https://docs.rs/mdbook-linkcheck"
 repository = "https://github.com/Michael-F-Bryan/mdbook-linkcheck"
 readme = "README.md"
 
-[package.metadata.release]
-sign-commit = true
-
 [[bin]]
 name = "mdbook-linkcheck"
 path = "src/bin/mdbook-linkcheck.rs"
