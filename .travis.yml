@@ -2,22 +2,25 @@ language: rust
 cache: cargo
 
 before_script:
-- set -e
+  - set -e
 
 script:
-- cargo build --verbose
-- cargo test --verbose
-- cargo doc --verbose
+  - cargo build --verbose
+  - cargo test --verbose
+
+before_deploy:
+  - cargo doc --verbose
+  - echo '<head><meta http-equiv="refresh" content="0; URL=mdbook_linkcheck/index.html" /></head>' > target/doc/index.html
 
 deploy:
-- provider: pages
-  skip-cleanup: true
-  github-token: "$GITHUB_TOKEN"
-  keep-history: true
-  local-dir: target/doc
-  on:
-    branch: master
-    rust: stable
+  - provider: pages
+    skip-cleanup: true
+    github-token: "$GITHUB_TOKEN"
+    keep-history: true
+    local-dir: target/doc
+    on:
+      branch: master
+      rust: stable
 
 notifications:
   email:
