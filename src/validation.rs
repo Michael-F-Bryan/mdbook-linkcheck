@@ -4,10 +4,17 @@ use std::ffi::OsStr;
 use std::path::Path;
 use url::Url;
 
-use errors::{BrokenLink, EmptyLink, FileNotFound, ForbiddenPath, HttpError, UnsuccessfulStatus};
+use errors::{
+    BrokenLink, EmptyLink, FileNotFound, ForbiddenPath, HttpError,
+    UnsuccessfulStatus,
+};
 use {Config, Link};
 
-pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), Box<BrokenLink>> {
+pub fn check_link(
+    link: &Link,
+    ctx: &RenderContext,
+    cfg: &Config,
+) -> Result<(), Box<BrokenLink>> {
     trace!("Checking {}", link);
 
     if link.url.is_empty() {
@@ -21,7 +28,11 @@ pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), 
     }
 }
 
-fn validate_external_link(link: &Link, url: &Url, cfg: &Config) -> Result<(), Box<BrokenLink>> {
+fn validate_external_link(
+    link: &Link,
+    url: &Url,
+    cfg: &Config,
+) -> Result<(), Box<BrokenLink>> {
     if !cfg.follow_web_links {
         debug!("Ignoring \"{}\"", url);
         return Ok(());
@@ -79,10 +90,28 @@ fn check_link_in_book(
         )));
     }
 
-    if path.extension() == Some(OsStr::new("html")) {
-        check_link_to_chapter(link, ctx)
+    let chapter_dir = absolute_chapter_path.parent().unwrap();
+    let target = chapter_dir.join(path);
+
+    debug!(
+        "Searching for \"{}\" from {}#{}",
+        target.display(),
+        link.chapter.path.display(),
+        link.line_number()
+    );
+
+    if target.exists() {
+        Ok(())
+    } else if target.extension() == Some(OsStr::new("html"))
+        && target.with_extension("md").exists()
+    {
+        Ok(())
     } else {
-        check_asset_link_is_valid(link, ctx)
+        Err(Box::new(FileNotFound::new(
+            path,
+            &link.chapter.path,
+            link.line_number(),
+        )))
     }
 }
 
@@ -98,77 +127,4 @@ fn path_is_outside_book(path: &Path, chapter: &Path, src: &Path) -> bool {
     };
 
     !joined.starts_with(&src)
-}
-
-fn check_link_to_chapter(link: &Link, ctx: &RenderContext) -> Result<(), Box<BrokenLink>> {
-    let mut path = match link.url.find('#') {
-        Some(ix) => &link.url[..ix],
-        None => &link.url,
-    };
-
-    // note: all chapter links are relative to the `src/` directory regardless
-    // of whether they start with "/" or not.
-    if path.starts_with("/") {
-        path = &path[1..];
-    }
-
-    let src = ctx.root.join(&ctx.config.book.src);
-
-    let chapter_path = src.join(path).with_extension("md");
-    debug!("Searching for {}", chapter_path.display());
-
-    if chapter_path.exists() {
-        Ok(())
-    } else {
-        Err(Box::new(FileNotFound::new(
-            path,
-            &link.chapter.path,
-            link.line_number(),
-        )))
-    }
-}
-
-/// Check the link is to a valid asset inside the book's `src/` directory. The
-/// HTML renderer will copy this to the destination directory accordingly.
-fn check_asset_link_is_valid(link: &Link, ctx: &RenderContext) -> Result<(), Box<BrokenLink>> {
-    let path = Path::new(&link.url);
-    let src = ctx.root.join(&ctx.config.book.src);
-
-    debug_assert!(
-        src.is_absolute(),
-        "mdbook didn't give us the book root's absolute path"
-    );
-
-    let full_path = if path.is_absolute() {
-        src.join(&path)
-    } else {
-        let directory = match link.chapter.path.parent() {
-            Some(parent) => src.join(parent),
-            None => src.clone(),
-        };
-
-        directory.join(&path)
-    };
-
-    // by this point we've resolved the link relative to the source chapter's
-    // directory, and turned it into an absolute path. This *should* match a
-    // file on disk.
-    debug!("Searching for {}", full_path.display());
-
-    match full_path.canonicalize() {
-        Err(_) => Err(Box::new(FileNotFound::new(
-            path,
-            &link.chapter.path,
-            link.line_number(),
-        ))),
-        Ok(p) => if p.exists() {
-            Ok(())
-        } else {
-            Err(Box::new(FileNotFound::new(
-                p,
-                &link.chapter.path,
-                link.line_number(),
-            )))
-        },
-    }
 }

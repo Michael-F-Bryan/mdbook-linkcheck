@@ -26,11 +26,19 @@ fn main() {
             if broken_links.links().len() == 1 {
                 eprintln!("There was 1 broken link:");
             } else {
-                eprintln!("There were {} broken links:", broken_links.links().len());
+                eprintln!(
+                    "There were {} broken links:",
+                    broken_links.links().len()
+                );
             }
 
             for error in broken_links {
-                eprintln!("{}#{}: {}", error.chapter().display(), error.line(), error);
+                eprintln!(
+                    "{}#{}: {}",
+                    error.chapter().display(),
+                    error.line(),
+                    error
+                );
             }
         } else {
             eprintln!("Error: {}", e);
@@ -58,14 +66,15 @@ fn run(args: &Args) -> Result<(), Error> {
 
         RenderContext {
             // TODO: Pull this from mdbook instead of hard-coding
-            version: String::from("0.1.3"),
+            version: String::from("0.2.0"),
             root: md.root,
             book: md.book,
             config: md.config,
             destination: destination,
         }
     } else {
-        serde_json::from_reader(io::stdin()).context("Unable to parse RenderContext")?
+        serde_json::from_reader(io::stdin())
+            .context("Unable to parse RenderContext")?
     };
 
     mdbook_linkcheck::check_links(&ctx)?;
