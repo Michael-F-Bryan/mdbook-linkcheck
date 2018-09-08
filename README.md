@@ -1,5 +1,10 @@
 # MDBook LinkCheck
 
+[![Build Status](https://travis-ci.org/Michael-F-Bryan/mdbook-linkcheck.svg?branch=master)](https://travis-ci.org/Michael-F-Bryan/mdbook-linkcheck)
+[![Crates.io](https://img.shields.io/crates/v/mdbook-linkcheck.svg)](https://crates.io/crates/mdbook-linkcheck)
+[![Docs.rs](https://docs.rs/mdbook-linkcheck/badge.svg)](https://docs.rs/mdbook-linkcheck/)
+[![license](https://img.shields.io/github/license/michael-f-bryan/mdbook-linkcheck.svg)](https://github.com/Michael-F-Bryan/mdbook-linkcheck/blob/master/LICENSE)
+
 A backend for `mdbook` which will check your links for you. For use alongside
 the built-in HTML renderer.
 
