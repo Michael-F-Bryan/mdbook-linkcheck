@@ -4,7 +4,6 @@ extern crate mdbook;
 extern crate mdbook_linkcheck;
 extern crate pulldown_cmark;
 extern crate serde_json;
-#[macro_use]
 extern crate structopt;
 
 use failure::{Error, ResultExt, SyncFailure};
