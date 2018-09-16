@@ -7,3 +7,5 @@
 [Link to a nested directory](nested/index.md)
 
 [And also external web pages](https://www.google.com/)
+
+[You can also blacklist URLs by regex](https://nonexistent.forbidden.com/)
