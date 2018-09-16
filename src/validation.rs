@@ -33,7 +33,7 @@ fn validate_external_link(
     url: &Url,
     cfg: &Config,
 ) -> Result<(), Box<BrokenLink>> {
-    if !cfg.follow_web_links {
+    if !cfg.follow_web_links || cfg.should_skip(url.as_str()) {
         debug!("Ignoring \"{}\"", url);
         return Ok(());
     }

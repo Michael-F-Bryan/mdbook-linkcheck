@@ -15,7 +15,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn should_exclude(&self, link: &str) -> bool {
+    pub fn should_skip(&self, link: &str) -> bool {
         self.exclude.iter().any(|pat| pat.is_match(link))
     }
 }
