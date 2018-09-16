@@ -55,6 +55,10 @@ follow-web-links = false
 # Are we allowed to link to files outside of the book's root directory? This
 # may help prevent linking to sensitive files (e.g. "../../../../etc/shadow")
 traverse-parent-directories = false
+
+# If necessary, you can exclude one or more web links from being checked with
+# a list of regular expressions
+exclude = [ "google\\.com" ]
 ```
 
 
