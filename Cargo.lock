@@ -535,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "mdbook-linkcheck"
-version = "0.2.2"
+version = "0.2.3-alpha.0"
 dependencies = [
  "env_logger 0.5.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
