@@ -4,6 +4,10 @@ extern crate mdbook;
 extern crate mdbook_linkcheck;
 extern crate pulldown_cmark;
 extern crate serde_json;
+// Structopt re-exports structopt_derive::StructOpt, but rustc still thinks the
+// `#[macro_use]` is unnecessary
+#[allow(unused_imports)]
+#[macro_use]
 extern crate structopt;
 
 use failure::{Error, ResultExt, SyncFailure};
