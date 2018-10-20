@@ -99,13 +99,12 @@ fn run_link_checker(root: &Path) -> Result<(), Error> {
         },
     ).unwrap();
 
-    let render_ctx = RenderContext {
-        version: mdbook_version(),
-        book: md.book,
-        config: cfg,
-        destination: root.join("book"),
-        root: root.to_path_buf(),
-    };
+    let mut render_ctx = RenderContext::new(
+        root.to_path_buf(),
+        md.book, cfg,
+        root.join("book")
+    );
+    render_ctx.version = mdbook_version();
 
     mdbook_linkcheck::check_links(&render_ctx)
 }

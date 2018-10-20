@@ -66,15 +66,7 @@ fn run(args: &Args) -> Result<(), Error> {
     let ctx: RenderContext = if args.standalone {
         let md = MDBook::load(&args.root).map_err(SyncFailure::new)?;
         let destination = md.build_dir_for("epub");
-
-        RenderContext {
-            // TODO: Pull this from mdbook instead of hard-coding
-            version: String::from("0.2.0"),
-            root: md.root,
-            book: md.book,
-            config: md.config,
-            destination: destination,
-        }
+        RenderContext::new(md.root, md.book, md.config, destination)
     } else {
         serde_json::from_reader(io::stdin())
             .context("Unable to parse RenderContext")?
