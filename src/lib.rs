@@ -110,15 +110,20 @@ fn get_config(ctx: &RenderContext) -> Result<Config, Error> {
 }
 
 fn version_check(ctx: &RenderContext) -> Result<(), Error> {
-    let compat = VersionReq::parse(COMPATIBLE_MDBOOK_VERSIONS)?;
-    let mdbook_version = Version::parse(&ctx.version)?;
+    let compiled_for = Version::parse(mdbook::MDBOOK_VERSION)?;
+    let mut upper_limit = compiled_for.clone();
+    upper_limit.increment_minor();
 
-    if compat.matches(&mdbook_version) {
+    let found = Version::parse(&ctx.version)?;
+
+    if compiled_for <= found && found < upper_limit {
         Ok(())
     } else {
         let msg = format!(
-            "mdbook-linkcheck is compatible with versions {}, but found {}",
-            compat, mdbook_version
+            "mdbook-linkcheck isn't compatible with this version of mdbook. Expected {} <= {} < {}",
+            compiled_for, 
+            found, 
+            upper_limit,
         );
         Err(failure::err_msg(msg))
     }
