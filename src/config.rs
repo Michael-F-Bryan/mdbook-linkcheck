@@ -45,7 +45,7 @@ mod regex_serde {
         let mut patterns = Vec::new();
 
         for pat in raw {
-            let re = Regex::new(&pat).map_err(|e| D::Error::custom(e))?;
+            let re = Regex::new(&pat).map_err(D::Error::custom)?;
             patterns.push(re);
         }
 

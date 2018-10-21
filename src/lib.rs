@@ -37,7 +37,7 @@ use failure::{Error, ResultExt, SyncFailure};
 use mdbook::book::{Book, BookItem};
 use mdbook::renderer::RenderContext;
 use rayon::prelude::*;
-use semver::{Version, VersionReq};
+use semver::Version;
 use std::error::Error as StdError;
 
 use links::collect_links;
@@ -121,8 +121,8 @@ fn version_check(ctx: &RenderContext) -> Result<(), Error> {
     } else {
         let msg = format!(
             "mdbook-linkcheck isn't compatible with this version of mdbook. Expected {} <= {} < {}",
-            compiled_for, 
-            found, 
+            compiled_for,
+            found,
             upper_limit,
         );
         Err(failure::err_msg(msg))
