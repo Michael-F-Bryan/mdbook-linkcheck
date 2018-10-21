@@ -77,8 +77,7 @@ fn run_link_checker(root: &Path) -> Result<(), Error> {
     )
     .unwrap();
 
-    let render_ctx =
-        RenderContext::new(root.join("book"), md.book, cfg, root.to_path_buf());
+    let render_ctx = RenderContext::new(root, md.book, cfg, root.to_path_buf());
 
     mdbook_linkcheck::check_links(&render_ctx)
 }
