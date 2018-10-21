@@ -8,7 +8,6 @@ use mdbook::MDBook;
 use mdbook_linkcheck::errors::*;
 use mdbook_linkcheck::Config;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 fn test_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests")
@@ -63,28 +62,6 @@ fn book_with_broken_links() {
     assert_eq!(other_nested.path, Path::new("./second/directory.md"));
 }
 
-fn mdbook_version() -> String {
-    let default_version = mdbook_linkcheck::COMPATIBLE_MDBOOK_VERSIONS
-        .replace("^", "")
-        .to_string();
-
-    let output = match Command::new("mdbook").arg("--version").output() {
-        Ok(o) => o,
-        Err(_) => return default_version,
-    };
-
-    let stdout = match String::from_utf8(output.stdout) {
-        Ok(v) => v,
-        Err(_) => return default_version,
-    };
-
-    extract_version_string(&stdout).unwrap_or(default_version)
-}
-
-fn extract_version_string(version: &str) -> Option<String> {
-    version.split_whitespace().nth(2).map(ToOwned::to_owned)
-}
-
 fn run_link_checker(root: &Path) -> Result<(), Error> {
     assert!(root.exists());
 
@@ -97,14 +74,10 @@ fn run_link_checker(root: &Path) -> Result<(), Error> {
             traverse_parent_directories: false,
             exclude: vec![r"forbidden\.com".parse().unwrap()],
         },
-    ).unwrap();
+    )
+    .unwrap();
 
-    let mut render_ctx = RenderContext::new(
-        root.to_path_buf(),
-        md.book, cfg,
-        root.join("book")
-    );
-    render_ctx.version = mdbook_version();
+    let render_ctx = RenderContext::new(root, md.book, cfg, root.to_path_buf());
 
     mdbook_linkcheck::check_links(&render_ctx)
 }

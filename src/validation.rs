@@ -100,11 +100,10 @@ fn check_link_in_book(
         link.line_number()
     );
 
-    if target.exists() {
-        Ok(())
-    } else if target.extension() == Some(OsStr::new("html"))
-        && target.with_extension("md").exists()
-    {
+    let html_equivalent_exists = target.extension() == Some(OsStr::new("html"))
+        && target.with_extension("md").exists();
+
+    if target.exists() || html_equivalent_exists {
         Ok(())
     } else {
         Err(Box::new(FileNotFound::new(
