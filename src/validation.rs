@@ -91,7 +91,12 @@ fn check_link_in_book(
     }
 
     let chapter_dir = absolute_chapter_path.parent().unwrap();
-    let target = chapter_dir.join(path);
+    let target =
+        if path.is_absolute() {
+            ctx.source_dir().join(path.strip_prefix("/").unwrap())
+        } else {
+            chapter_dir.join(path)
+        };
 
     debug!(
         "Searching for \"{}\" from {}#{}",

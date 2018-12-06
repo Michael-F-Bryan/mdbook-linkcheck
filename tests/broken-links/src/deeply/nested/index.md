@@ -1,8 +1,7 @@
 # Deeply Nested Chapter
 
-We can link to [chapter 1](../../chapter_1.md) using relative links, but
-[absolute links](/chapter_1.md) or links [relative to the root](./chapter_1.md)
-won't work.
+We can link to [chapter 1](../../chapter_1.md) using relative links, but links
+[relative to the root](./chapter_1.md) won't work.
 
 Linking to a [sibling directory](./second/directory.md) relative to the source
 root won't work either. We need to specify a link [relative to

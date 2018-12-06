@@ -27,7 +27,7 @@ fn book_with_broken_links() {
     let broken_links = result.downcast_ref::<BrokenLinks>().unwrap();
     let links = broken_links.links();
 
-    assert_eq!(links.len(), 6);
+    assert_eq!(links.len(), 5);
 
     let non_existent_url =
         links[0].as_fail().downcast_ref::<HttpError>().unwrap();
@@ -51,14 +51,11 @@ fn book_with_broken_links() {
 
     // Nested links which are relative to the book root instead of the current
     // file are errors
-    let deeply_nested_absolute =
-        links[3].as_fail().downcast_ref::<FileNotFound>().unwrap();
-    assert_eq!(deeply_nested_absolute.path, Path::new("/chapter_1.md"));
     let deeply_nested_relative =
-        links[4].as_fail().downcast_ref::<FileNotFound>().unwrap();
+        links[3].as_fail().downcast_ref::<FileNotFound>().unwrap();
     assert_eq!(deeply_nested_relative.path, Path::new("./chapter_1.md"));
     let other_nested =
-        links[5].as_fail().downcast_ref::<FileNotFound>().unwrap();
+        links[4].as_fail().downcast_ref::<FileNotFound>().unwrap();
     assert_eq!(other_nested.path, Path::new("./second/directory.md"));
 }
 
