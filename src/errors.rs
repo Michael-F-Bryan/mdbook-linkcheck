@@ -27,9 +27,7 @@ impl FromParallelIterator<Box<BrokenLink>> for BrokenLinks {
 }
 
 impl FromIterator<Box<BrokenLink>> for BrokenLinks {
-    fn from_iter<I: IntoIterator<Item = Box<BrokenLink>>>(
-        it: I,
-    ) -> BrokenLinks {
+    fn from_iter<I: IntoIterator<Item = Box<BrokenLink>>>(it: I) -> BrokenLinks {
         BrokenLinks(it.into_iter().collect())
     }
 }
@@ -142,12 +140,7 @@ pub struct UnsuccessfulStatus {
 }
 
 impl UnsuccessfulStatus {
-    pub(crate) fn new<P>(
-        url: Url,
-        code: StatusCode,
-        chapter: P,
-        line: usize,
-    ) -> UnsuccessfulStatus
+    pub(crate) fn new<P>(url: Url, code: StatusCode, chapter: P, line: usize) -> UnsuccessfulStatus
     where
         P: Into<PathBuf>,
     {
@@ -209,12 +202,7 @@ pub struct HttpError {
 }
 
 impl HttpError {
-    pub(crate) fn new<P, E>(
-        url: Url,
-        chapter: P,
-        line: usize,
-        error: E,
-    ) -> HttpError
+    pub(crate) fn new<P, E>(url: Url, chapter: P, line: usize, error: E) -> HttpError
     where
         P: Into<PathBuf>,
         E: Into<Error>,

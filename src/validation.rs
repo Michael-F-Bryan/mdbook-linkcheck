@@ -4,17 +4,10 @@ use std::ffi::OsStr;
 use std::path::Path;
 use url::Url;
 
-use errors::{
-    BrokenLink, EmptyLink, FileNotFound, ForbiddenPath, HttpError,
-    UnsuccessfulStatus,
-};
+use errors::{BrokenLink, EmptyLink, FileNotFound, ForbiddenPath, HttpError, UnsuccessfulStatus};
 use {Config, Link};
 
-pub fn check_link(
-    link: &Link,
-    ctx: &RenderContext,
-    cfg: &Config,
-) -> Result<(), Box<BrokenLink>> {
+pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), Box<BrokenLink>> {
     trace!("Checking {}", link);
 
     if link.url.is_empty() {
@@ -28,11 +21,7 @@ pub fn check_link(
     }
 }
 
-fn validate_external_link(
-    link: &Link,
-    url: &Url,
-    cfg: &Config,
-) -> Result<(), Box<BrokenLink>> {
+fn validate_external_link(link: &Link, url: &Url, cfg: &Config) -> Result<(), Box<BrokenLink>> {
     if !cfg.follow_web_links || cfg.should_skip(url.as_str()) {
         debug!("Ignoring \"{}\"", url);
         return Ok(());
@@ -91,12 +80,11 @@ fn check_link_in_book(
     }
 
     let chapter_dir = absolute_chapter_path.parent().unwrap();
-    let target =
-        if path.is_absolute() {
-            ctx.source_dir().join(path.strip_prefix("/").unwrap())
-        } else {
-            chapter_dir.join(path)
-        };
+    let target = if path.is_absolute() {
+        ctx.source_dir().join(path.strip_prefix("/").unwrap())
+    } else {
+        chapter_dir.join(path)
+    };
 
     debug!(
         "Searching for \"{}\" from {}#{}",
@@ -105,8 +93,8 @@ fn check_link_in_book(
         link.line_number()
     );
 
-    let html_equivalent_exists = target.extension() == Some(OsStr::new("html"))
-        && target.with_extension("md").exists();
+    let html_equivalent_exists =
+        target.extension() == Some(OsStr::new("html")) && target.with_extension("md").exists();
 
     if target.exists() || html_equivalent_exists {
         Ok(())

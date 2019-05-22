@@ -79,11 +79,7 @@ fn all_links(book: &Book) -> Vec<Link> {
     links
 }
 
-fn validate_links(
-    links: &[Link],
-    ctx: &RenderContext,
-    cfg: &Config,
-) -> Result<(), BrokenLinks> {
+fn validate_links(links: &[Link], ctx: &RenderContext, cfg: &Config) -> Result<(), BrokenLinks> {
     let broken_links: BrokenLinks = links
         .into_par_iter()
         .map(|l| check_link(l, ctx, &cfg))
@@ -120,9 +116,7 @@ fn version_check(ctx: &RenderContext) -> Result<(), Error> {
     } else {
         let msg = format!(
             "mdbook-linkcheck isn't compatible with this version of mdbook. Expected {} <= {} < {}",
-            compiled_for,
-            found,
-            upper_limit,
+            compiled_for, found, upper_limit,
         );
         Err(failure::err_msg(msg))
     }

@@ -29,19 +29,11 @@ fn main() {
             if broken_links.links().len() == 1 {
                 eprintln!("There was 1 broken link:");
             } else {
-                eprintln!(
-                    "There were {} broken links:",
-                    broken_links.links().len()
-                );
+                eprintln!("There were {} broken links:", broken_links.links().len());
             }
 
             for error in broken_links {
-                eprintln!(
-                    "{}#{}: {}",
-                    error.chapter().display(),
-                    error.line(),
-                    error
-                );
+                eprintln!("{}#{}: {}", error.chapter().display(), error.line(), error);
             }
         } else {
             eprintln!("Error: {}", e);
@@ -68,8 +60,7 @@ fn run(args: &Args) -> Result<(), Error> {
         let destination = md.build_dir_for("epub");
         RenderContext::new(md.root, md.book, md.config, destination)
     } else {
-        serde_json::from_reader(io::stdin())
-            .context("Unable to parse RenderContext")?
+        serde_json::from_reader(io::stdin()).context("Unable to parse RenderContext")?
     };
 
     mdbook_linkcheck::check_links(&ctx)?;
@@ -85,10 +76,6 @@ struct Args {
         help = "Run standalone (i.e. not as a mdbook plugin)"
     )]
     standalone: bool,
-    #[structopt(
-        help = "The book to render.",
-        parse(from_os_str),
-        default_value = "."
-    )]
+    #[structopt(help = "The book to render.", parse(from_os_str), default_value = ".")]
     root: PathBuf,
 }
