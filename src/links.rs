@@ -45,8 +45,8 @@ pub fn collect_links(ch: &Chapter) -> Vec<Link> {
 
     while let Some(event) = parser.next() {
         match event {
-            Event::Start(Tag::Link(dest, _))
-            | Event::Start(Tag::Image(dest, _)) => {
+            Event::Start(Tag::Link(_, dest, _))
+            | Event::Start(Tag::Image(_, dest, _)) => {
                 let link = Link {
                     url: dest.to_string(),
                     offset: parser.get_offset(),

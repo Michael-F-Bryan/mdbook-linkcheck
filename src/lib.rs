@@ -1,6 +1,5 @@
 //! A `mdbook` backend which will check all links in a document are valid.
 
-#[macro_use]
 extern crate failure;
 extern crate semver;
 #[macro_use]

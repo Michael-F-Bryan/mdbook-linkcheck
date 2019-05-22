@@ -65,7 +65,7 @@ impl PartialEq for Config {
             && *traverse_parent_directories == other.traverse_parent_directories
             && exclude.len() == other.exclude.len()
             && exclude
-                .into_iter()
+                .iter()
                 .zip(other.exclude.iter())
                 .all(|(l, r)| l.as_str() == r.as_str())
     }
