@@ -9,31 +9,31 @@ use url::Url;
 /// The error which were generated while checking links.
 #[derive(Debug, Fail)]
 #[fail(display = "there are broken links")]
-pub struct BrokenLinks(Vec<Box<BrokenLink>>);
+pub struct BrokenLinks(Vec<Box<dyn BrokenLink>>);
 
 impl BrokenLinks {
-    pub fn links(&self) -> &[Box<BrokenLink>] {
+    pub fn links(&self) -> &[Box<dyn BrokenLink>] {
         &self.0
     }
 }
 
-impl FromParallelIterator<Box<BrokenLink>> for BrokenLinks {
+impl FromParallelIterator<Box<dyn BrokenLink>> for BrokenLinks {
     fn from_par_iter<I>(par_iter: I) -> Self
     where
-        I: IntoParallelIterator<Item = Box<BrokenLink>>,
+        I: IntoParallelIterator<Item = Box<dyn BrokenLink>>,
     {
         BrokenLinks(Vec::from_par_iter(par_iter))
     }
 }
 
-impl FromIterator<Box<BrokenLink>> for BrokenLinks {
-    fn from_iter<I: IntoIterator<Item = Box<BrokenLink>>>(it: I) -> BrokenLinks {
+impl FromIterator<Box<dyn BrokenLink>> for BrokenLinks {
+    fn from_iter<I: IntoIterator<Item = Box<dyn BrokenLink>>>(it: I) -> BrokenLinks {
         BrokenLinks(it.into_iter().collect())
     }
 }
 
 impl IntoIterator for BrokenLinks {
-    type Item = Box<BrokenLink>;
+    type Item = Box<dyn BrokenLink>;
     type IntoIter = <Vec<Self::Item> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -50,7 +50,7 @@ pub struct Links<'a> {
 }
 
 impl<'a> Iterator for Links<'a> {
-    type Item = &'a BrokenLink;
+    type Item = &'a dyn BrokenLink;
 
     fn next(&mut self) -> Option<Self::Item> {
         let item = self.parent.0.get(self.cursor).map(|b| &**b);
@@ -60,7 +60,7 @@ impl<'a> Iterator for Links<'a> {
 }
 
 impl<'a> IntoIterator for &'a BrokenLinks {
-    type Item = &'a BrokenLink;
+    type Item = &'a dyn BrokenLink;
     type IntoIter = Links<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -78,7 +78,7 @@ pub trait BrokenLink: Fail {
     fn chapter(&self) -> &Path;
     /// The line this error occurred on.
     fn line(&self) -> usize;
-    fn as_fail(&self) -> &Fail;
+    fn as_fail(&self) -> &dyn Fail;
 }
 
 macro_rules! impl_broken_link {
@@ -92,7 +92,7 @@ macro_rules! impl_broken_link {
                 &self.chapter
             }
 
-            fn as_fail(&self) -> &Fail {
+            fn as_fail(&self) -> &dyn Fail {
                 self
             }
         }

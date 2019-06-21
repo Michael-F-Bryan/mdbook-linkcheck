@@ -7,7 +7,11 @@ use url::Url;
 use errors::{BrokenLink, EmptyLink, FileNotFound, ForbiddenPath, HttpError, UnsuccessfulStatus};
 use {Config, Link};
 
-pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), Box<BrokenLink>> {
+pub fn check_link(
+    link: &Link,
+    ctx: &RenderContext,
+    cfg: &Config,
+) -> Result<(), Box<dyn BrokenLink>> {
     trace!("Checking {}", link);
 
     if link.url.is_empty() {
@@ -21,7 +25,7 @@ pub fn check_link(link: &Link, ctx: &RenderContext, cfg: &Config) -> Result<(), 
     }
 }
 
-fn validate_external_link(link: &Link, url: &Url, cfg: &Config) -> Result<(), Box<BrokenLink>> {
+fn validate_external_link(link: &Link, url: &Url, cfg: &Config) -> Result<(), Box<dyn BrokenLink>> {
     if !cfg.follow_web_links || cfg.should_skip(url.as_str()) {
         debug!("Ignoring \"{}\"", url);
         return Ok(());
@@ -35,7 +39,7 @@ fn validate_external_link(link: &Link, url: &Url, cfg: &Config) -> Result<(), Bo
             link.chapter.path.clone(),
             link.line_number(),
             e,
-        )) as Box<BrokenLink>
+        )) as Box<dyn BrokenLink>
     })?;
     let status = response.status();
 
@@ -56,7 +60,7 @@ fn check_link_in_book(
     link: &Link,
     ctx: &RenderContext,
     cfg: &Config,
-) -> Result<(), Box<BrokenLink>> {
+) -> Result<(), Box<dyn BrokenLink>> {
     if link.url.starts_with('#') {
         // this just jumps to another spot on the page
         return Ok(());
