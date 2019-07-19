@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-linkcheck"
-version = "0.3.1-alpha.0"
+version = "0.3.1"
 authors = ["Michael Bryan <michaelfbryan@gmail.com>"]
 description = "A backend for `mdbook` which will check your links for you."
 license = "MIT"
