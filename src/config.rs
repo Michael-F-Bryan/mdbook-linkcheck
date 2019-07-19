@@ -1,4 +1,5 @@
 use regex::Regex;
+use serde_derive::{Deserialize, Serialize};
 
 /// The configuration options available with this backend.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -22,9 +23,12 @@ impl Config {
 
 mod regex_serde {
     use regex::Regex;
-    use serde::de::{Deserialize, Deserializer, Error};
-    use serde::ser::{SerializeSeq, Serializer};
+    use serde::{
+        de::{Deserialize, Deserializer, Error},
+        ser::{SerializeSeq, Serializer},
+    };
 
+    #[allow(clippy::ptr_arg)]
     pub fn serialize<S>(re: &Vec<Regex>, ser: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

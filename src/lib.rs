@@ -1,54 +1,37 @@
 //! A `mdbook` backend which will check all links in a document are valid.
 
-extern crate failure;
-extern crate semver;
-#[macro_use]
-extern crate log;
-extern crate mdbook;
-extern crate memchr;
-extern crate pulldown_cmark;
-extern crate regex;
-extern crate reqwest;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate rayon;
-extern crate url;
-
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
-#[cfg(test)]
-extern crate toml;
 
 pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
 mod config;
 
-pub use config::Config;
+pub use crate::config::Config;
 
+use failure::{Error, ResultExt};
 use mdbook::renderer::RenderContext;
 use semver::Version;
-use failure::{Error, ResultExt};
 
 /// The main entrypoint for this crate.
 ///
 /// If there were any broken links then you'll be able to downcast the `Error`
 /// returned into `BrokenLinks`.
 pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
-    info!("Started the link checker");
+    log::info!("Started the link checker");
 
     version_check(ctx)?;
 
     let cfg = get_config(ctx)?;
 
-    if log_enabled!(::log::Level::Trace) {
+    if log::log_enabled!(::log::Level::Trace) {
         for line in format!("{:#?}", cfg).lines() {
-            trace!("{}", line);
+            log::trace!("{}", line);
         }
     }
 
-    info!("Scanning book for links");
+    log::info!("Scanning book for links");
     unimplemented!();
 }
 

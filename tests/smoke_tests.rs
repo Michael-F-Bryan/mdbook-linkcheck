@@ -1,16 +1,9 @@
-extern crate failure;
-extern crate mdbook;
-extern crate mdbook_linkcheck;
-
 use failure::Error;
-use mdbook::renderer::RenderContext;
-use mdbook::MDBook;
+use mdbook::{renderer::RenderContext, MDBook};
 use mdbook_linkcheck::Config;
 use std::path::{Path, PathBuf};
 
-fn test_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests")
-}
+fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
 
 #[test]
 fn check_all_links_in_a_valid_book() {
