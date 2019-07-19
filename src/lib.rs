@@ -1,4 +1,13 @@
 //! A `mdbook` backend which will check all links in a document are valid.
+//!
+//! The link-checking process has roughly three stages:
+//!
+//! 1. Find all the links in a body of markdown text
+//! 2. Validate all the links we've found, taking into account cached results
+//!    and configuration options
+//! 3. Cache the results in the output directory for reuse by step 2 in the next
+//!    round
+//! 4. Emit errors/warnings to the user
 
 #[cfg(test)]
 #[macro_use]
@@ -11,32 +20,10 @@ mod config;
 pub use crate::config::Config;
 
 use failure::{Error, ResultExt};
-use mdbook::renderer::RenderContext;
-use semver::Version;
+use semver::{Version, VersionReq};
 
-/// The main entrypoint for this crate.
-///
-/// If there were any broken links then you'll be able to downcast the `Error`
-/// returned into `BrokenLinks`.
-pub fn check_links(ctx: &RenderContext) -> Result<(), Error> {
-    log::info!("Started the link checker");
-
-    version_check(ctx)?;
-
-    let cfg = get_config(ctx)?;
-
-    if log::log_enabled!(::log::Level::Trace) {
-        for line in format!("{:#?}", cfg).lines() {
-            log::trace!("{}", line);
-        }
-    }
-
-    log::info!("Scanning book for links");
-    unimplemented!();
-}
-
-fn get_config(ctx: &RenderContext) -> Result<Config, Error> {
-    match ctx.config.get("output.linkcheck") {
+pub fn get_config(cfg: &mdbook::Config) -> Result<Config, Error> {
+    match cfg.get("output.linkcheck") {
         Some(raw) => raw
             .clone()
             .try_into()
@@ -46,20 +33,27 @@ fn get_config(ctx: &RenderContext) -> Result<Config, Error> {
     }
 }
 
-fn version_check(ctx: &RenderContext) -> Result<(), Error> {
-    let compiled_for = Version::parse(mdbook::MDBOOK_VERSION)?;
-    let mut upper_limit = compiled_for.clone();
-    upper_limit.increment_minor();
+pub fn version_check(version: &str) -> Result<(), Error> {
+    let constraints = VersionReq::parse(COMPATIBLE_MDBOOK_VERSIONS)?;
+    let found = Version::parse(version)?;
 
-    let found = Version::parse(&ctx.version)?;
-
-    if compiled_for <= found && found < upper_limit {
+    if constraints.matches(&found) {
         Ok(())
     } else {
         let msg = format!(
-            "mdbook-linkcheck isn't compatible with this version of mdbook. Expected {} <= {} < {}",
-            compiled_for, found, upper_limit,
+            "mdbook-linkcheck isn't compatible with this version of mdbook ({} is not in the range {})",
+            found, constraints
         );
         Err(failure::err_msg(msg))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn always_stay_compatible_with_mdbook_dependency() {
+        version_check(mdbook::MDBOOK_VERSION).unwrap();
     }
 }

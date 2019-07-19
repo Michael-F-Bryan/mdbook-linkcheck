@@ -22,9 +22,26 @@ fn _run(args: &Args) -> Result<(), Error> {
             .context("Unable to parse RenderContext")?
     };
 
-    mdbook_linkcheck::check_links(&ctx)?;
+    _check_links(&ctx)?;
 
     Ok(())
+}
+
+fn _check_links(ctx: &RenderContext) -> Result<(), Error> {
+    log::info!("Started the link checker");
+
+    mdbook_linkcheck::version_check(&ctx.version)?;
+
+    let cfg = mdbook_linkcheck::get_config(&ctx.config)?;
+
+    if log::log_enabled!(::log::Level::Trace) {
+        for line in format!("{:#?}", cfg).lines() {
+            log::trace!("{}", line);
+        }
+    }
+
+    log::info!("Scanning book for links");
+    unimplemented!();
 }
 
 #[derive(Debug, Clone, StructOpt)]
