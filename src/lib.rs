@@ -21,7 +21,7 @@ extern crate pretty_assertions;
 #[cfg(test)]
 extern crate toml;
 
-pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.2.0";
+pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
 mod config;
 pub mod errors;
