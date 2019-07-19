@@ -16,8 +16,10 @@ extern crate pretty_assertions;
 pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
 mod config;
+mod links;
 
 pub use crate::config::Config;
+pub use crate::links::{Link, extract_links};
 
 use failure::{Error, ResultExt};
 use semver::{Version, VersionReq};
@@ -33,6 +35,7 @@ pub fn get_config(cfg: &mdbook::Config) -> Result<Config, Error> {
     }
 }
 
+/// Check whether this library is compatible with the provided version string.
 pub fn version_check(version: &str) -> Result<(), Error> {
     let constraints = VersionReq::parse(COMPATIBLE_MDBOOK_VERSIONS)?;
     let found = Version::parse(version)?;
