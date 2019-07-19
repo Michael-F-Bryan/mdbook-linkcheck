@@ -100,13 +100,13 @@ mod tests {
 
         let should_be = vec![
             Link {
-                url: String::from("index.html"),
-                offset: 1,
+                url: String::from("https://google.com"),
+                offset: 43,
                 chapter: &ch,
             },
             Link {
-                url: String::from("https://google.com"),
-                offset: 43,
+                url: String::from("index.html"),
+                offset: 1,
                 chapter: &ch,
             },
         ];

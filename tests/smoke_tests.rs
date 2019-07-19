@@ -29,21 +29,21 @@ fn book_with_broken_links() {
 
     assert_eq!(links.len(), 5);
 
-    let non_existent_url = links[0].as_fail().downcast_ref::<HttpError>().unwrap();
+    // Allowing something like this (by default) might be a bit of a security
+    // issue...
+    let etc_shadow = links[0].as_fail().downcast_ref::<ForbiddenPath>().unwrap();
     assert_eq!(
-        non_existent_url.url.as_str(),
-        "http://this-doesnt-exist.com.au.nz.us/"
+        etc_shadow.path,
+        Path::new("../../../../../../../../../../../../etc/shadow")
     );
 
     let missing_chapter = links[1].as_fail().downcast_ref::<FileNotFound>().unwrap();
     assert_eq!(missing_chapter.path, Path::new("./foo/bar/baz.html"));
 
-    // Allowing something like this (by default) might be a bit of a security
-    // issue...
-    let etc_shadow = links[2].as_fail().downcast_ref::<ForbiddenPath>().unwrap();
+    let non_existent_url = links[2].as_fail().downcast_ref::<HttpError>().unwrap();
     assert_eq!(
-        etc_shadow.path,
-        Path::new("../../../../../../../../../../../../etc/shadow")
+        non_existent_url.url.as_str(),
+        "http://this-doesnt-exist.com.au.nz.us/"
     );
 
     // Nested links which are relative to the book root instead of the current
