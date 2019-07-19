@@ -58,6 +58,10 @@ pub fn collect_links(ch: &Chapter) -> Vec<Link> {
             _ => {}
         }
     }
+    
+    // Remove duplicate links
+    links.sort_unstable();
+    links.dedup();
 
     links
 }
