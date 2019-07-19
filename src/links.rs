@@ -2,9 +2,10 @@ use mdbook::book::Chapter;
 use memchr::Memchr;
 use pulldown_cmark::{Event, Parser, Tag};
 use std::fmt::{self, Display, Formatter};
+use std::cmp::Ordering;
 
 /// Information about a link in one of the book's chapters.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Link<'a> {
     pub url: String,
     pub offset: usize,
@@ -37,6 +38,27 @@ impl<'a> Display for Link<'a> {
         )
     }
 }
+
+impl<'a> PartialEq for Link<'a> {
+    fn eq(&self, other: &Link<'a>) -> bool {
+        self.url.eq(&other.url)
+    }
+}
+
+impl<'a> Eq for Link<'a> {}
+
+impl<'a> PartialOrd for Link<'a> {
+    fn partial_cmp(&self, other: &Link<'a>) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'a> Ord for Link<'a> {
+    fn cmp(&self, other: &Link<'a>) -> Ordering {
+        self.url.cmp(&other.url)
+    }
+}
+
 
 /// Find all the links in a particular chapter.
 pub fn collect_links(ch: &Chapter) -> Vec<Link> {
