@@ -2,12 +2,14 @@ use crate::{
     cache::{Cache, CacheEntry},
     Config, Link,
 };
+use codespan_reporting::{Diagnostic, Label};
 use either::Either;
 use failure::Error;
 use http::HeaderMap;
 use rayon::prelude::*;
 use reqwest::{Client, StatusCode};
 use std::{
+    fmt::{self, Display, Formatter},
     path::Path,
     time::{Duration, SystemTime},
 };
@@ -27,6 +29,7 @@ pub fn validate(
     let buckets =
         sort_into_buckets(links, |link| outcome.unknown_schema.push(link));
 
+    log::debug!("Checking {} local links", buckets.file.len());
     validate_local_links(
         &buckets.file,
         cfg.traverse_parent_directories,
@@ -35,12 +38,45 @@ pub fn validate(
     );
 
     if cfg.follow_web_links {
-        validate_web_links(&buckets.file, cfg, &mut outcome, cache)?;
+        log::debug!("Checking {} web links", buckets.web.len());
+        let mut web = buckets.web;
+        remove_skipped_links(&mut web, &mut outcome, &cfg);
+        validate_web_links(&web, cfg, &mut outcome, cache)?;
     } else {
+        log::debug!("Ignoring {} web links", buckets.web.len());
         outcome.ignored.extend(buckets.web);
     }
 
     Ok(outcome)
+}
+
+/// Removes any web links we'd normally skip, adding them to the list of ignored
+/// links.
+fn remove_skipped_links(
+    links: &mut Vec<Link>,
+    outcome: &mut ValidationOutcome,
+    cfg: &Config,
+) {
+    links.retain(|link| {
+        let uri = link.uri.to_string();
+
+        if cfg.should_skip(&uri) {
+            let line_number = link
+                .file
+                .find_line(link.span.start())
+                .expect("The link came from this file");
+            log::debug!(
+                "Skipping \"{}\" in {}, line {}",
+                uri,
+                link.file.name(),
+                line_number.number(),
+            );
+            outcome.ignored.push(link.clone());
+            false
+        } else {
+            true
+        }
+    })
 }
 
 fn sort_into_buckets<F: FnMut(Link)>(
@@ -163,9 +199,14 @@ fn check_link(
         Ok(response) => {
             let status = response.status();
             log::trace!("\"{}\" replied with {}", url, status);
+            cache.insert(url, CacheEntry::new(SystemTime::now(), false));
             Err(Reason::UnsuccessfulServerResponse(status))
         },
-        Err(e) => Err(Reason::Client(e)),
+        Err(e) => {
+            log::trace!("Request to \"{}\" failed: {}", url, e);
+            cache.insert(url, CacheEntry::new(SystemTime::now(), false));
+            Err(Reason::Client(e))
+        },
     }
 }
 
@@ -187,6 +228,22 @@ pub struct ValidationOutcome {
     pub ignored: Vec<Link>,
     /// Links which we don't know how to handle.
     pub unknown_schema: Vec<Link>,
+}
+
+impl ValidationOutcome {
+    /// Generate a list of [`Diagnostic`] messages from this
+    /// [`ValidationOutcome`].
+    pub fn generate_diagnostics(&self) -> Vec<Diagnostic> {
+        let mut diags = Vec::new();
+
+        for link in &self.invalid_links {
+            let diag = Diagnostic::new_error(link.reason.to_string())
+                .with_label(Label::new_primary(link.link.span));
+            diags.push(diag);
+        }
+
+        diags
+    }
 }
 
 /// An invalid [`Link`] and the [`Reason`] for why it isn't valid.
@@ -211,6 +268,21 @@ pub enum Reason {
     UnsuccessfulServerResponse(StatusCode),
     /// An error was encountered while checking a web link.
     Client(reqwest::Error),
+}
+
+impl Display for Reason {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Reason::FileNotFound => "File not found".fmt(f),
+            Reason::TraversesParentDirectories => {
+                "Linking outside of the book directory is forbidden".fmt(f)
+            },
+            Reason::UnsuccessfulServerResponse(code) => {
+                write!(f, "Server responded with {}", code)
+            },
+            Reason::Client(ref err) => err.fmt(f),
+        }
+    }
 }
 
 /// An unknown [`Uri::scheme_str()`].

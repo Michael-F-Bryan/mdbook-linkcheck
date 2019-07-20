@@ -2,12 +2,13 @@ use codespan::{ByteIndex, ByteOffset, ByteSpan, CodeMap, FileMap};
 use http::uri::{Parts, Uri};
 use pulldown_cmark::{Event, OffsetIter, Parser, Tag};
 use std::{
+    fmt::{self, Debug, Formatter},
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 /// A single link, and where it was found in the parent document.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Link {
     /// The link itself.
     pub uri: Uri,
@@ -51,12 +52,21 @@ impl Link {
         let path = Path::new(self.uri.path());
 
         if path.is_absolute() {
-            root_dir.join(path)
+            // absolute paths are resolved by joining the root and the path.
+            // Note that you can't use Path::join() with another absolute path
+            let mut full_path = root_dir.to_path_buf();
+            full_path.extend(
+                path.components()
+                    .filter(|&c| c != std::path::Component::RootDir),
+            );
+            full_path
         } else {
             // This link is relative to the file it was written in (or rather,
             // that file's parent directory)
-            let parent_dir =
-                self.file.name().as_ref().parent().unwrap_or(root_dir);
+            let parent_dir = match self.file.name().as_ref().parent() {
+                Some(p) => root_dir.join(p),
+                None => root_dir.to_path_buf(),
+            };
             parent_dir.join(path)
         }
     }
@@ -67,6 +77,17 @@ impl PartialEq for Link {
         self.uri == other.uri
             && self.span == other.span
             && Arc::ptr_eq(&self.file, &other.file)
+    }
+}
+
+impl Debug for Link {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let Link { uri, span, file: _ } = self;
+
+        f.debug_struct("Link")
+            .field("uri", uri)
+            .field("span", span)
+            .finish()
     }
 }
 
@@ -97,8 +118,6 @@ impl<'a> Iterator for Links<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((event, range)) = self.events.next() {
-            println!("{:?} @ {:?}", event, range);
-
             match event {
                 Event::Start(Tag::Link(_, dest, _))
                 | Event::Start(Tag::Image(_, dest, _)) => {

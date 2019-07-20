@@ -34,7 +34,7 @@ impl Config {
     /// Checks [`Config::exclude`] to see if the provided link should be
     /// skipped.
     pub fn should_skip(&self, link: &str) -> bool {
-        self.exclude.iter().any(|pat| pat.is_match(link))
+        self.exclude.iter().any(|pat| pat.find(link).is_some())
     }
 }
 
