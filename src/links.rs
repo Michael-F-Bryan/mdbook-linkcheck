@@ -1,64 +1,88 @@
 use codespan::{ByteIndex, ByteOffset, ByteSpan, CodeMap, FileMap};
+use http::uri::{Parts, Uri};
 use pulldown_cmark::{Event, OffsetIter, Parser, Tag};
-use url::Url;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Link {
-    pub url: Url,
+    pub uri: Uri,
     pub span: ByteSpan,
+    pub file: Arc<FileMap>,
 }
 
+impl Link {
+    pub(crate) fn parse(
+        uri: &str,
+        range: std::ops::Range<usize>,
+        file: Arc<FileMap>,
+        base_offset: ByteOffset,
+    ) -> Result<Link, http::Error> {
+        let start = ByteIndex(range.start as u32) + base_offset;
+        let end = ByteIndex(range.end as u32) + base_offset;
+        let span = ByteSpan::new(start, end);
+
+        // it might be a valid URI already
+        if let Ok(uri) = uri.parse() {
+            return Ok(Link { uri, span, file });
+        }
+
+        // otherwise, treat it like a relative path with no authority or scheme
+        let mut parts = Parts::default();
+        parts.path_and_query = Some(uri.parse()?);
+        let uri = Uri::from_parts(parts)?;
+
+        Ok(Link { uri, span, file })
+    }
+
+    pub fn as_filesystem_path(&self, root_dir: &Path) -> PathBuf {
+        let path = Path::new(self.uri.path());
+
+        if path.is_absolute() {
+            root_dir.join(path)
+        } else {
+            // This link is relative to the file it was written in (or rather,
+            // that file's parent directory)
+            let parent_dir =
+                self.file.name().as_ref().parent().unwrap_or(root_dir);
+            parent_dir.join(path)
+        }
+    }
+}
+
+impl PartialEq for Link {
+    fn eq(&self, other: &Self) -> bool {
+        self.uri == other.uri
+            && self.span == other.span
+            && Arc::ptr_eq(&self.file, &other.file)
+    }
+}
+
+/// Search every file in the [`CodeMap`] and collate all the links that are
+/// found.
 pub fn extract_links(map: &CodeMap) -> Vec<Link> {
     map.iter().flat_map(|f| Links::new(f)).collect()
 }
 
-struct Links<'a, S> {
+struct Links<'a> {
     events: OffsetIter<'a>,
-    file: &'a FileMap<S>,
+    file: &'a Arc<FileMap>,
     base_offset: ByteOffset,
 }
 
-impl<'a, S: AsRef<str> + 'a> Links<'a, S> {
-    fn new(file: &'a FileMap<S>) -> Links<'a, S> {
+impl<'a> Links<'a> {
+    fn new(file: &'a Arc<FileMap>) -> Links<'a> {
         Links {
             events: Parser::new(file.src().as_ref()).into_offset_iter(),
             file,
             base_offset: ByteOffset(file.span().start().0 as i64),
         }
     }
-
-    fn process_link(
-        &self,
-        url: &str,
-        range: std::ops::Range<usize>,
-    ) -> Option<Link> {
-        let start = ByteIndex(range.start as u32) + self.base_offset;
-        let end = ByteIndex(range.end as u32) + self.base_offset;
-        let span = ByteSpan::new(start, end);
-
-        log::trace!("Found \"{}\" at {}", url, span);
-
-        match Url::parse(url) {
-            Ok(url) => Some(Link { url, span }),
-            Err(e) => {
-                let line = self
-                    .file
-                    .find_line(start)
-                    .expect("The span should always be in this file");
-                log::warn!(
-                    "Unable to parse \"{}\" as a URL on line {}: {}",
-                    url,
-                    line.number(),
-                    e
-                );
-
-                None
-            },
-        }
-    }
 }
 
-impl<'a, S: AsRef<str> + 'a> Iterator for Links<'a, S> {
+impl<'a> Iterator for Links<'a> {
     type Item = Link;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -68,8 +92,34 @@ impl<'a, S: AsRef<str> + 'a> Iterator for Links<'a, S> {
             match event {
                 Event::Start(Tag::Link(_, dest, _))
                 | Event::Start(Tag::Image(_, dest, _)) => {
-                    if let Some(link) = self.process_link(&*dest, range) {
-                        return Some(link);
+                    log::trace!(
+                        "Found \"{}\" at {}..{}",
+                        dest,
+                        range.start,
+                        range.end
+                    );
+
+                    match Link::parse(
+                        &dest,
+                        range.clone(),
+                        Arc::clone(&self.file),
+                        self.base_offset,
+                    ) {
+                        Ok(link) => return Some(link),
+                        Err(e) => {
+                            let line = self
+                                .file
+                                .find_line(
+                                    ByteIndex(range.start as u32)
+                                        + self.base_offset,
+                                )
+                                .expect(
+                                    "The span should always be in this file",
+                                );
+                            log::warn!( "Unable to parse \"{}\" as a URI on line {}: {}", dest, line.number(), e);
+
+                            continue;
+                        },
                     }
                 },
                 _ => {},
@@ -87,9 +137,10 @@ mod tests {
 
     #[test]
     fn detect_the_most_basic_link() {
-        let src = "This is a link to [nowhere](http://doesnt.exist/)";
-        let file = FileMap::new(FileName::virtual_("whatever"), src);
-        let link = Url::parse("http://doesnt.exist/").unwrap();
+        let src =
+            "This is a link to [nowhere](http://doesnt.exist/)".to_string();
+        let file = Arc::new(FileMap::new(FileName::virtual_("whatever"), src));
+        let link: Uri = "http://doesnt.exist/".parse().unwrap();
 
         let got: Vec<Link> = Links::new(&file).collect();
 
@@ -102,6 +153,6 @@ mod tests {
         //     span: ByteSpan::new(ByteIndex(19) + start, ByteIndex(20) start),
         // };
         // assert_eq!(got[0], should_be);
-        assert_eq!(got[0].url, link);
+        assert_eq!(got[0].uri, link);
     }
 }

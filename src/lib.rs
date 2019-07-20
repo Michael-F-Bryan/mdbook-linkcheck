@@ -2,7 +2,7 @@
 //!
 //! The link-checking process has roughly three stages:
 //!
-//! 1. Find all the links in a body of markdown text
+//! 1. Find all the links in a body of markdown text (see [`extract_links`])
 //! 2. Validate all the links we've found, taking into account cached results
 //!    and configuration options
 //! 3. Cache the results in the output directory for reuse by step 2 in the next
@@ -15,11 +15,19 @@ extern crate pretty_assertions;
 
 pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
+mod cache;
 mod config;
 mod links;
+mod validate;
 
-pub use crate::config::Config;
-pub use crate::links::{Link, extract_links};
+pub use crate::{
+    cache::Cache,
+    config::Config,
+    links::{extract_links, Link},
+    validate::{
+        validate, InvalidLink, Reason, UnknownScheme, ValidationOutcome,
+    },
+};
 
 use failure::{Error, ResultExt};
 use semver::{Version, VersionReq};
