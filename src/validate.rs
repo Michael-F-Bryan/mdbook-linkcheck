@@ -108,6 +108,11 @@ fn validate_local_links(
     );
 
     for link in links {
+        if link.uri.path() == "" {
+            // it's a link within the same document
+            continue;
+        }
+
         let path = link.as_filesystem_path(root_dir);
         let link = link.clone();
 
@@ -121,10 +126,7 @@ fn validate_local_links(
                 link,
                 reason: Reason::TraversesParentDirectories,
             });
-        } else if path.is_file()
-            || (path.is_dir() && path.join("index.md").is_file())
-        {
-            // e.g. a normal file, or "./some-dir/" -> "./some-dir/index.md"
+        } else if file_exists(&path) {
             outcome.valid_links.push(link);
         } else {
             log::trace!("It doesn't exist");
@@ -134,6 +136,28 @@ fn validate_local_links(
             });
         }
     }
+}
+
+fn file_exists(path: &Path) -> bool {
+    if path.is_file() {
+        return true;
+    }
+
+    // as a special case, handle links to the rendered html file
+    if path.extension() == Some("html".as_ref())
+        && path.with_extension("md").is_file()
+    {
+        return true;
+    }
+
+    // e.g. "./some-dir/" -> "./some-dir/index.md"
+    if path.is_dir()
+        && (path.join("index.md").is_file() || path.join("index.md").is_file())
+    {
+        return true;
+    }
+
+    false
 }
 
 fn validate_web_links(
@@ -185,7 +209,10 @@ fn check_link(
         if entry.successful
             && entry.elapsed() < Duration::from_secs(cfg.cache_timeout)
         {
-            log::trace!("Cached entry is still fresh and was successful");
+            log::trace!(
+                "Cached entry for \"{}\" is still fresh and was successful",
+                url
+            );
             return Ok(());
         }
     }
@@ -238,7 +265,7 @@ impl ValidationOutcome {
         let mut diags = Vec::new();
 
         for link in &self.invalid_links {
-            let diag = Diagnostic::new_error(link.reason.to_string())
+            let diag = Diagnostic::new_error(link.to_string())
                 .with_label(Label::new_primary(link.link.span));
             diags.push(diag);
         }
@@ -254,6 +281,21 @@ pub struct InvalidLink {
     pub link: Link,
     /// Why the link isn't valid.
     pub reason: Reason,
+}
+
+impl Display for InvalidLink {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self.reason {
+            Reason::FileNotFound => write!(f, "File not found: {}", self.link.uri),
+            Reason::TraversesParentDirectories => {
+                write!(f, "\"{}\" links outside of the book directory, but this is forbidden", self.link.uri)
+            },
+            Reason::UnsuccessfulServerResponse(code) => {
+                write!(f, "The server responded with {} for \"{}\"", code, self.link.uri)
+            },
+            Reason::Client(ref err) => write!(f, "Unable to retrieve \"{}\": {}", self.link.uri, err),
+        }
+    }
 }
 
 /// Why is this [`Link`] invalid?

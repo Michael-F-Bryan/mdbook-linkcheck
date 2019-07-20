@@ -39,8 +39,10 @@ fn main() -> Result<(), Error> {
     save_cache(&cache_file, &cache);
 
     if diags.iter().any(|diag| diag.severity >= Severity::Error) {
+        log::info!("{} broken links found", outcome.invalid_links.len());
         Err(failure::err_msg("One or more incorrect links"))
     } else {
+        log::info!("No broken links found");
         Ok(())
     }
 }
