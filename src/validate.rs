@@ -185,6 +185,7 @@ fn check_link(
         if entry.successful
             && entry.elapsed() < Duration::from_secs(cfg.cache_timeout)
         {
+            log::trace!("Cached entry is still fresh and was successful");
             return Ok(());
         }
     }

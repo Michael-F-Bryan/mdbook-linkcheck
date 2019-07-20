@@ -6,7 +6,11 @@ use codespan_reporting::{
 use failure::{Error, ResultExt, SyncFailure};
 use mdbook::{renderer::RenderContext, MDBook};
 use mdbook_linkcheck::{Cache, ValidationOutcome};
-use std::{io, path::PathBuf};
+use std::{
+    fs::File,
+    io,
+    path::{Path, PathBuf},
+};
 use structopt::StructOpt;
 
 fn main() -> Result<(), Error> {
@@ -25,14 +29,60 @@ fn main() -> Result<(), Error> {
             .context("Unable to parse RenderContext")?
     };
 
-    let (code, outcome) = check_links(&ctx)?;
+    let cache_file = ctx.destination.join("cache.json");
+    let cache = load_cache(&cache_file);
+
+    let (code, outcome) = check_links(&ctx, &cache)?;
     let diags = outcome.generate_diagnostics();
     report_errors(&code, &diags, args.colour)?;
+
+    save_cache(&cache_file, &cache);
 
     if diags.iter().any(|diag| diag.severity >= Severity::Error) {
         Err(failure::err_msg("One or more incorrect links"))
     } else {
         Ok(())
+    }
+}
+
+fn load_cache(filename: &Path) -> Cache {
+    log::debug!("Loading cache from {}", filename.display());
+
+    match File::open(filename) {
+        Ok(f) => match Cache::load(f) {
+            Ok(cache) => cache,
+            Err(e) => {
+                log::warn!("Unable to deserialize the cache: {}", e);
+                Cache::default()
+            },
+        },
+        // Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {
+        //     log::debug!("Cache file doesn't exist: {}", e);
+        //     Cache::default()
+        // },
+        Err(e) => {
+            log::debug!("Unable to open the cache: {}", e);
+            Cache::default()
+        },
+    }
+}
+
+fn save_cache(filename: &Path, cache: &Cache) {
+    if let Some(parent) = filename.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            log::warn!("Unable to create the cache's directory: {}", e);
+        }
+    }
+
+    log::debug!("Saving the cache to {}", filename.display());
+
+    match File::create(filename) {
+        Ok(f) => {
+            if let Err(e) = cache.save(f) {
+                log::warn!("Saving the cache as JSON failed: {}", e);
+            }
+        },
+        Err(e) => log::warn!("Unable to create the cache file: {}", e),
     }
 }
 
@@ -52,6 +102,7 @@ fn report_errors(
 
 fn check_links(
     ctx: &RenderContext,
+    cache: &Cache,
 ) -> Result<(CodeMap, ValidationOutcome), Error> {
     log::info!("Started the link checker");
 
@@ -70,7 +121,6 @@ fn check_links(
     let links = mdbook_linkcheck::extract_links(&codemap);
     log::info!("Found {} links", links.len());
     let src = ctx.source_dir();
-    let cache = Cache::default();
     let outcome = mdbook_linkcheck::validate(&links, &cfg, &src, &cache)?;
 
     Ok((codemap, outcome))
