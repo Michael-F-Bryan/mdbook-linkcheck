@@ -9,10 +9,18 @@
 //!    round
 //! 4. Emit errors/warnings to the user
 
+#![deny(
+    intra_doc_link_resolution_failure,
+    missing_docs,
+    missing_debug_implementations,
+    missing_copy_implementations
+)]
+
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
 
+/// A semver range specifying which versions of `mdbook` this crate supports.
 pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
 mod cache;

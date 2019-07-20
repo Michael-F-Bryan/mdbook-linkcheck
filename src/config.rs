@@ -12,8 +12,10 @@ pub struct Config {
     pub follow_web_links: bool,
     /// Are we allowed to link to files outside of the book's source directory?
     pub traverse_parent_directories: bool,
+    /// A list of URL patterns to ignore when checking remote links.
     #[serde(with = "regex_serde")]
     pub exclude: Vec<Regex>,
+    /// The user-agent used whenever any web requests are made.
     #[serde(default = "default_user_agent")]
     pub user_agent: String,
     /// The number of seconds a cached result is valid for.
@@ -25,9 +27,12 @@ impl Config {
     /// The default cache timeout (around 12 hours).
     pub const DEFAULT_CACHE_TIMEOUT: Duration =
         Duration::from_secs(60 * 60 * 12);
+    /// The default user-agent.
     pub const DEFAULT_USER_AGENT: &'static str =
         concat!(env!("CARGO_PKG_NAME"), "-", env!("CARGO_PKG_VERSION"));
 
+    /// Checks [`Config::exclude`] to see if the provided link should be
+    /// skipped.
     pub fn should_skip(&self, link: &str) -> bool {
         self.exclude.iter().any(|pat| pat.is_match(link))
     }

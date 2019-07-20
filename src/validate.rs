@@ -6,7 +6,7 @@ use either::Either;
 use failure::Error;
 use http::HeaderMap;
 use rayon::prelude::*;
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use std::{
     path::Path,
     time::{Duration, SystemTime},
@@ -180,7 +180,10 @@ struct Buckets {
 pub struct ValidationOutcome {
     /// Valid links.
     pub valid_links: Vec<Link>,
+    /// Links where validation failed.
     pub invalid_links: Vec<InvalidLink>,
+    /// Links which have been ignored (e.g. due to
+    /// [`Config::follow_web_links`]).
     pub ignored: Vec<Link>,
     /// Links which we don't know how to handle.
     pub unknown_schema: Vec<Link>,
@@ -189,15 +192,24 @@ pub struct ValidationOutcome {
 /// An invalid [`Link`] and the [`Reason`] for why it isn't valid.
 #[derive(Debug)]
 pub struct InvalidLink {
+    /// The dodgy link.
     pub link: Link,
+    /// Why the link isn't valid.
     pub reason: Reason,
 }
 
+/// Why is this [`Link`] invalid?
 #[derive(Debug)]
 pub enum Reason {
+    /// The link points to a file that doesn't exist.
     FileNotFound,
+    /// The link points to a file outside of the book directory, and traversing
+    /// outside the book directory is forbidden.
     TraversesParentDirectories,
-    UnsuccessfulServerResponse(reqwest::StatusCode),
+    /// The server replied with an unsuccessful status code (according to
+    /// [`StatusCode::is_success()`]).
+    UnsuccessfulServerResponse(StatusCode),
+    /// An error was encountered while checking a web link.
     Client(reqwest::Error),
 }
 

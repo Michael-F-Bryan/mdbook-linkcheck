@@ -9,8 +9,11 @@ use std::{
 /// A single link, and where it was found in the parent document.
 #[derive(Debug, Clone)]
 pub struct Link {
+    /// The link itself.
     pub uri: Uri,
+    /// Where the link lies in its original text.
     pub span: ByteSpan,
+    /// The [`FileMap`] this link was originally found in.
     pub file: Arc<FileMap>,
 }
 
@@ -38,7 +41,7 @@ impl Link {
         Ok(Link { uri, span, file })
     }
 
-    pub fn as_filesystem_path(&self, root_dir: &Path) -> PathBuf {
+    pub(crate) fn as_filesystem_path(&self, root_dir: &Path) -> PathBuf {
         debug_assert!(
             self.uri.scheme_str().is_none()
                 || self.uri.scheme_str() == Some("file"),
