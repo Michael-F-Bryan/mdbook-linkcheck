@@ -1,5 +1,13 @@
-use crate::{Cache, Config, Link};
-use std::path::Path;
+use crate::{Cache, CacheEntry, Config, Link};
+use either::Either;
+use failure::Error;
+use http::HeaderMap;
+use rayon::prelude::*;
+use reqwest::Client;
+use std::{
+    path::Path,
+    time::{Duration, SystemTime},
+};
 
 #[allow(unused_imports)]
 use http::Uri;
@@ -8,8 +16,8 @@ pub fn validate(
     links: &[Link],
     cfg: &Config,
     src_dir: &Path,
-    _cache: &Cache,
-) -> ValidationOutcome {
+    cache: &Cache,
+) -> Result<ValidationOutcome, Error> {
     let mut outcome = ValidationOutcome::default();
 
     let buckets =
@@ -23,12 +31,12 @@ pub fn validate(
     );
 
     if cfg.follow_web_links {
-        unimplemented!()
+        validate_web_links(&buckets.file, cfg, &mut outcome, cache)?;
     } else {
         outcome.ignored.extend(buckets.web);
     }
 
-    outcome
+    Ok(outcome)
 }
 
 fn sort_into_buckets<F: FnMut(Link)>(
@@ -54,6 +62,11 @@ fn validate_local_links(
     root_dir: &Path,
     outcome: &mut ValidationOutcome,
 ) {
+    debug_assert!(
+        root_dir.is_absolute(),
+        "The root directory should be absolute"
+    );
+
     for link in links {
         let path = link.as_filesystem_path(root_dir);
         let link = link.clone();
@@ -83,13 +96,82 @@ fn validate_local_links(
     }
 }
 
+fn validate_web_links(
+    links: &[Link],
+    cfg: &Config,
+    outcome: &mut ValidationOutcome,
+    cache: &Cache,
+) -> Result<(), Error> {
+    let client = create_client(cfg)?;
+
+    let (valid, invalid): (Vec<_>, Vec<_>) =
+        links.par_iter().partition_map(|link| {
+            match check_link(link, &client, cfg, cache) {
+                Ok(_) => Either::Left(link.clone()),
+                Err(e) => Either::Right(InvalidLink {
+                    link: link.clone(),
+                    reason: e,
+                }),
+            }
+        });
+
+    outcome.valid_links.extend(valid);
+    outcome.invalid_links.extend(invalid);
+
+    Ok(())
+}
+
+fn create_client(cfg: &Config) -> Result<Client, Error> {
+    let mut headers = HeaderMap::new();
+    headers.insert(reqwest::header::USER_AGENT, cfg.user_agent.parse()?);
+
+    let client = Client::builder()
+        .use_sys_proxy()
+        .default_headers(headers)
+        .build()?;
+
+    Ok(client)
+}
+
+fn check_link(
+    link: &Link,
+    client: &Client,
+    cfg: &Config,
+    cache: &Cache,
+) -> Result<(), Reason> {
+    let url = link.uri.to_string();
+
+    if let Some(entry) = cache.lookup(&url) {
+        if entry.successful
+            && entry.elapsed() < Duration::from_secs(cfg.cache_timeout)
+        {
+            return Ok(());
+        }
+    }
+
+    log::trace!("Sending a GET request to \"{}\"", url);
+
+    match client.get(&url).send() {
+        Ok(ref response) if response.status().is_success() => {
+            cache.insert(url, CacheEntry::new(SystemTime::now(), true));
+            Ok(())
+        },
+        Ok(response) => {
+            let status = response.status();
+            log::trace!("\"{}\" replied with {}", url, status);
+            Err(Reason::UnsuccessfulServerResponse(status))
+        },
+        Err(e) => Err(Reason::Client(e)),
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq)]
 struct Buckets {
     web: Vec<Link>,
     file: Vec<Link>,
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default)]
 pub struct ValidationOutcome {
     /// Valid links.
     pub valid_links: Vec<Link>,
@@ -99,16 +181,18 @@ pub struct ValidationOutcome {
     pub unknown_schema: Vec<Link>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct InvalidLink {
     pub link: Link,
     pub reason: Reason,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 pub enum Reason {
     FileNotFound,
     TraversesParentDirectories,
+    UnsuccessfulServerResponse(reqwest::StatusCode),
+    Client(reqwest::Error),
 }
 
 /// An unknown [`Uri::scheme_str()`].

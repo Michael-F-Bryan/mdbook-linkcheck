@@ -1,8 +1,9 @@
 use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
+use std::time::Duration;
 
 /// The configuration options available with this backend.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
 pub struct Config {
     /// If a link on the internet is encountered, should we still try to check
@@ -13,13 +14,39 @@ pub struct Config {
     pub traverse_parent_directories: bool,
     #[serde(with = "regex_serde")]
     pub exclude: Vec<Regex>,
+    #[serde(default = "default_user_agent")]
+    pub user_agent: String,
+    /// The number of seconds a cached result is valid for.
+    #[serde(default = "default_cache_timeout")]
+    pub cache_timeout: u64,
 }
 
 impl Config {
+    /// The default cache timeout (around 12 hours).
+    pub const DEFAULT_CACHE_TIMEOUT: Duration =
+        Duration::from_secs(60 * 60 * 12);
+    pub const DEFAULT_USER_AGENT: &'static str =
+        concat!(env!("CARGO_PKG_NAME"), "-", env!("CARGO_PKG_VERSION"));
+
     pub fn should_skip(&self, link: &str) -> bool {
         self.exclude.iter().any(|pat| pat.is_match(link))
     }
 }
+
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            follow_web_links: false,
+            traverse_parent_directories: false,
+            exclude: Vec::new(),
+            user_agent: default_user_agent(),
+            cache_timeout: Config::DEFAULT_CACHE_TIMEOUT.as_secs(),
+        }
+    }
+}
+
+fn default_cache_timeout() -> u64 { Config::DEFAULT_CACHE_TIMEOUT.as_secs() }
+fn default_user_agent() -> String { Config::DEFAULT_USER_AGENT.to_string() }
 
 mod regex_serde {
     use regex::Regex;
@@ -63,11 +90,15 @@ impl PartialEq for Config {
             follow_web_links,
             traverse_parent_directories,
             ref exclude,
+            ref user_agent,
+            cache_timeout,
         } = self;
 
         *follow_web_links == other.follow_web_links
             && *traverse_parent_directories == other.traverse_parent_directories
             && exclude.len() == other.exclude.len()
+            && *user_agent == other.user_agent
+            && *cache_timeout == other.cache_timeout
             && exclude
                 .iter()
                 .zip(other.exclude.iter())
@@ -82,6 +113,8 @@ mod tests {
     const CONFIG: &str = r#"follow-web-links = true
 traverse-parent-directories = true
 exclude = ["google\\.com"]
+user-agent = "Internet Explorer"
+cache-timeout = 3600
 "#;
 
     #[test]
@@ -90,6 +123,8 @@ exclude = ["google\\.com"]
             follow_web_links: true,
             traverse_parent_directories: true,
             exclude: vec![Regex::new(r"google\.com").unwrap()],
+            user_agent: String::from("Internet Explorer"),
+            cache_timeout: 3600,
         };
 
         let got: Config = toml::from_str(CONFIG).unwrap();

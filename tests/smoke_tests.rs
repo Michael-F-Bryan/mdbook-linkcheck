@@ -23,6 +23,7 @@ fn run_link_checker(root: &Path) -> Result<(), Error> {
             follow_web_links: true,
             traverse_parent_directories: false,
             exclude: vec![r"forbidden\.com".parse().unwrap()],
+            ..Default::default()
         },
     )
     .unwrap();

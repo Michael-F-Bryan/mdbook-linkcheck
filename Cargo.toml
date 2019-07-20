@@ -29,6 +29,9 @@ regex = "1.0"
 codespan = "0.3.0"
 codespan-reporting = "0.3.0"
 http = "0.1.17"
+reqwest = "0.9.19"
+rayon = "1.1.0"
+either = "1.5.2"
 
 [dev-dependencies]
 pretty_assertions = "0.6"

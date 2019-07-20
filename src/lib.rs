@@ -21,7 +21,7 @@ mod links;
 mod validate;
 
 pub use crate::{
-    cache::Cache,
+    cache::{Cache, CacheEntry},
     config::Config,
     links::{extract_links, Link},
     validate::{
