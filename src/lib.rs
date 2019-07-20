@@ -21,7 +21,7 @@ mod links;
 mod validate;
 
 pub use crate::{
-    cache::{Cache, CacheEntry},
+    cache::Cache,
     config::Config,
     links::{extract_links, Link},
     validate::{
@@ -29,9 +29,12 @@ pub use crate::{
     },
 };
 
+use codespan::{CodeMap, FileName};
 use failure::{Error, ResultExt};
+use mdbook::book::{Book, BookItem};
 use semver::{Version, VersionReq};
 
+/// Get the configuration used by `mdbook-linkcheck`.
 pub fn get_config(cfg: &mdbook::Config) -> Result<Config, Error> {
     match cfg.get("output.linkcheck") {
         Some(raw) => raw
@@ -57,6 +60,22 @@ pub fn version_check(version: &str) -> Result<(), Error> {
         );
         Err(failure::err_msg(msg))
     }
+}
+
+/// A helper for converting between a [`Book`] and a [`CodeMap`].
+pub fn book_to_codemap(book: &Book) -> CodeMap {
+    let mut map = CodeMap::new();
+
+    for item in book.iter() {
+        match item {
+            BookItem::Chapter(ref ch) => {
+                map.add_filemap(FileName::real(&ch.path), ch.content.clone());
+            },
+            BookItem::Separator => {},
+        }
+    }
+
+    map
 }
 
 #[cfg(test)]

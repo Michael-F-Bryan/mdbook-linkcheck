@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+/// A single link, and where it was found in the parent document.
 #[derive(Debug, Clone)]
 pub struct Link {
     pub uri: Uri,
@@ -38,6 +39,12 @@ impl Link {
     }
 
     pub fn as_filesystem_path(&self, root_dir: &Path) -> PathBuf {
+        debug_assert!(
+            self.uri.scheme_str().is_none()
+                || self.uri.scheme_str() == Some("file"),
+            "this operation only makes sense for file URIs"
+        );
+
         let path = Path::new(self.uri.path());
 
         if path.is_absolute() {
@@ -77,7 +84,7 @@ impl<'a> Links<'a> {
         Links {
             events: Parser::new(file.src().as_ref()).into_offset_iter(),
             file,
-            base_offset: ByteOffset(file.span().start().0 as i64),
+            base_offset: ByteOffset(i64::from(file.span().start().0)),
         }
     }
 }

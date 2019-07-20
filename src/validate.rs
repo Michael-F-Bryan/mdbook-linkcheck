@@ -1,4 +1,7 @@
-use crate::{Cache, CacheEntry, Config, Link};
+use crate::{
+    cache::{Cache, CacheEntry},
+    Config, Link,
+};
 use either::Either;
 use failure::Error;
 use http::HeaderMap;
@@ -12,6 +15,7 @@ use std::{
 #[allow(unused_imports)]
 use http::Uri;
 
+/// Try to validate the provided [`Link`]s.
 pub fn validate(
     links: &[Link],
     cfg: &Config,
@@ -81,10 +85,10 @@ fn validate_local_links(
                 link,
                 reason: Reason::TraversesParentDirectories,
             });
-        } else if path.is_file() {
-            outcome.valid_links.push(link);
-        } else if path.is_dir() && path.join("index.md").is_file() {
-            // e.g. "./some-dir/" -> "./some-dir/index.md"
+        } else if path.is_file()
+            || (path.is_dir() && path.join("index.md").is_file())
+        {
+            // e.g. a normal file, or "./some-dir/" -> "./some-dir/index.md"
             outcome.valid_links.push(link);
         } else {
             log::trace!("It doesn't exist");
@@ -171,6 +175,7 @@ struct Buckets {
     file: Vec<Link>,
 }
 
+/// The outcome of validating a set of links.
 #[derive(Debug, Default)]
 pub struct ValidationOutcome {
     /// Valid links.
@@ -181,6 +186,7 @@ pub struct ValidationOutcome {
     pub unknown_schema: Vec<Link>,
 }
 
+/// An invalid [`Link`] and the [`Reason`] for why it isn't valid.
 #[derive(Debug)]
 pub struct InvalidLink {
     pub link: Link,
