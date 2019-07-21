@@ -33,6 +33,11 @@ fn main() -> Result<(), Error> {
     let cache = load_cache(&cache_file);
 
     let (code, outcome) = check_links(&ctx, &cache)?;
+    log::debug!(
+        "cache hits: {}, cache misses: {}",
+        cache.cache_hits(),
+        cache.cache_misses()
+    );
     let diags = outcome.generate_diagnostics();
     report_errors(&code, &diags, args.colour)?;
 

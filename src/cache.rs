@@ -3,14 +3,22 @@ use serde_derive::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     io::{Read, Write},
-    sync::RwLock,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        RwLock,
+    },
     time::{Duration, SystemTime},
 };
 
 /// A cache used to avoid unnecessary web requests.
 #[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Cache {
     links: RwLock<BTreeMap<String, CacheEntry>>,
+    #[serde(skip)]
+    cache_hits: AtomicUsize,
+    #[serde(skip)]
+    cache_misses: AtomicUsize,
 }
 
 impl Cache {
@@ -28,7 +36,15 @@ impl Cache {
     pub(crate) fn lookup(&self, url: &str) -> Option<CacheEntry> {
         let links = self.links.read().expect("Lock was poisoned");
 
-        links.get(url).cloned()
+        let entry = links.get(url).copied();
+
+        if entry.is_some() {
+            self.cache_hits.fetch_add(1, Ordering::SeqCst);
+        } else {
+            self.cache_misses.fetch_add(1, Ordering::SeqCst);
+        }
+
+        entry
     }
 
     pub(crate) fn insert<S: Into<String>>(&self, url: S, entry: CacheEntry) {
@@ -37,10 +53,25 @@ impl Cache {
             .expect("Lock was poisoned")
             .insert(url.into(), entry);
     }
+
+    /// Reset the [`Cache::cache_hits()`] and [`Cache::cache_misses()`]
+    /// counters.
+    pub fn reset_counters(&self) {
+        self.cache_hits.store(0, Ordering::SeqCst);
+        self.cache_misses.store(0, Ordering::SeqCst);
+    }
+
+    /// The number of times a lookup was successful.
+    pub fn cache_hits(&self) -> usize { self.cache_hits.load(Ordering::SeqCst) }
+
+    /// The number of times a lookup was unsuccessful.
+    pub fn cache_misses(&self) -> usize {
+        self.cache_misses.load(Ordering::SeqCst)
+    }
 }
 
 /// An entry in the cache.
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct CacheEntry {
     pub unix_timestamp: u64,
     pub successful: bool,
