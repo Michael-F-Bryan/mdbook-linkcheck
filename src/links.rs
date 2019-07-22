@@ -1,118 +1,187 @@
-use mdbook::book::Chapter;
-use memchr::Memchr;
-use pulldown_cmark::{Event, Parser, Tag};
-use std::fmt::{self, Display, Formatter};
-use std::cmp::Ordering;
+use codespan::{ByteIndex, ByteOffset, ByteSpan, CodeMap, FileMap};
+use http::uri::{Parts, Uri};
+use pulldown_cmark::{Event, OffsetIter, Parser, Tag};
+use std::{
+    fmt::{self, Debug, Formatter},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-/// Information about a link in one of the book's chapters.
-#[derive(Debug, Clone)]
-pub struct Link<'a> {
-    pub url: String,
-    pub offset: usize,
-    pub chapter: &'a Chapter,
+/// A single link, and where it was found in the parent document.
+#[derive(Clone)]
+pub struct Link {
+    /// The link itself.
+    pub uri: Uri,
+    /// Where the link lies in its original text.
+    pub span: ByteSpan,
+    /// The [`FileMap`] this link was originally found in.
+    pub file: Arc<FileMap>,
 }
 
-impl<'a> Link<'a> {
-    pub fn line_number(&self) -> usize {
-        let content = &self.chapter.content;
-        if self.offset > content.len() {
-            panic!(
-                "Link has invalid offset. Got {} but chapter is only {} bytes long.",
-                self.offset,
-                self.chapter.content.len()
+impl Link {
+    pub(crate) fn parse(
+        uri: &str,
+        range: std::ops::Range<usize>,
+        file: Arc<FileMap>,
+        base_offset: ByteOffset,
+    ) -> Result<Link, http::Error> {
+        let start = ByteIndex(range.start as u32) + base_offset;
+        let end = ByteIndex(range.end as u32) + base_offset;
+        let span = ByteSpan::new(start, end);
+
+        // it might be a valid URI already
+        if let Ok(uri) = uri.parse() {
+            return Ok(Link { uri, span, file });
+        }
+
+        // otherwise, treat it like a relative path with no authority or scheme
+        let mut parts = Parts::default();
+        parts.path_and_query = Some(uri.parse()?);
+        let uri = Uri::from_parts(parts)?;
+
+        Ok(Link { uri, span, file })
+    }
+
+    pub(crate) fn as_filesystem_path(&self, root_dir: &Path) -> PathBuf {
+        debug_assert!(
+            self.uri.scheme_str().is_none()
+                || self.uri.scheme_str() == Some("file"),
+            "this operation only makes sense for file URIs"
+        );
+
+        let path = Path::new(self.uri.path());
+
+        if path.is_absolute() {
+            // absolute paths are resolved by joining the root and the path.
+            // Note that you can't use Path::join() with another absolute path
+            let mut full_path = root_dir.to_path_buf();
+            full_path.extend(
+                path.components()
+                    .filter(|&c| c != std::path::Component::RootDir),
             );
+            full_path
+        } else {
+            // This link is relative to the file it was written in (or rather,
+            // that file's parent directory)
+            let parent_dir = match self.file.name().as_ref().parent() {
+                Some(p) => root_dir.join(p),
+                None => root_dir.to_path_buf(),
+            };
+            parent_dir.join(path)
         }
-
-        Memchr::new(b'\n', content[..self.offset].as_bytes()).count() + 1
     }
 }
 
-impl<'a> Display for Link<'a> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f,
-            "\"{}\" in {}#{}",
-            self.url,
-            self.chapter.path.display(),
-            self.line_number()
-        )
+impl PartialEq for Link {
+    fn eq(&self, other: &Self) -> bool {
+        self.uri == other.uri
+            && self.span == other.span
+            && Arc::ptr_eq(&self.file, &other.file)
     }
 }
 
-impl<'a> PartialEq for Link<'a> {
-    fn eq(&self, other: &Link<'a>) -> bool {
-        self.url.eq(&other.url)
+impl Debug for Link {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let Link { uri, span, file: _ } = self;
+
+        f.debug_struct("Link")
+            .field("uri", uri)
+            .field("span", span)
+            .finish()
     }
 }
 
-impl<'a> Eq for Link<'a> {}
+/// Search every file in the [`CodeMap`] and collate all the links that are
+/// found.
+pub fn extract_links(map: &CodeMap) -> Vec<Link> {
+    map.iter().flat_map(|f| Links::new(f)).collect()
+}
 
-impl<'a> PartialOrd for Link<'a> {
-    fn partial_cmp(&self, other: &Link<'a>) -> Option<Ordering> {
-        Some(self.cmp(other))
+struct Links<'a> {
+    events: OffsetIter<'a>,
+    file: &'a Arc<FileMap>,
+    base_offset: ByteOffset,
+}
+
+impl<'a> Links<'a> {
+    fn new(file: &'a Arc<FileMap>) -> Links<'a> {
+        Links {
+            events: Parser::new(file.src().as_ref()).into_offset_iter(),
+            file,
+            base_offset: ByteOffset(i64::from(file.span().start().0)),
+        }
     }
 }
 
-impl<'a> Ord for Link<'a> {
-    fn cmp(&self, other: &Link<'a>) -> Ordering {
-        self.url.cmp(&other.url)
-    }
-}
+impl<'a> Iterator for Links<'a> {
+    type Item = Link;
 
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((event, range)) = self.events.next() {
+            match event {
+                Event::Start(Tag::Link(_, dest, _))
+                | Event::Start(Tag::Image(_, dest, _)) => {
+                    log::trace!(
+                        "Found \"{}\" at {}..{}",
+                        dest,
+                        range.start,
+                        range.end
+                    );
 
-/// Find all the links in a particular chapter.
-pub fn collect_links(ch: &Chapter) -> Vec<Link> {
-    let mut links = Vec::new();
-    let mut parser = Parser::new(&ch.content);
+                    match Link::parse(
+                        &dest,
+                        range.clone(),
+                        Arc::clone(&self.file),
+                        self.base_offset,
+                    ) {
+                        Ok(link) => return Some(link),
+                        Err(e) => {
+                            let line = self
+                                .file
+                                .find_line(
+                                    ByteIndex(range.start as u32)
+                                        + self.base_offset,
+                                )
+                                .expect(
+                                    "The span should always be in this file",
+                                );
+                            log::warn!( "Unable to parse \"{}\" as a URI on line {}: {}", dest, line.number(), e);
 
-    while let Some(event) = parser.next() {
-        match event {
-            Event::Start(Tag::Link(_, dest, _)) | Event::Start(Tag::Image(_, dest, _)) => {
-                let link = Link {
-                    url: dest.to_string(),
-                    offset: parser.get_offset(),
-                    chapter: ch,
-                };
-
-                trace!("Found {}", link);
-                links.push(link);
+                            continue;
+                        },
+                    }
+                },
+                _ => {},
             }
-            _ => {}
         }
-    }
-    
-    // Remove duplicate links
-    links.sort_unstable();
-    links.dedup();
 
-    links
+        None
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mdbook::book::Chapter;
+    use codespan::FileName;
 
     #[test]
-    fn find_links_in_chapter() {
-        let src = "[Reference other chapter](index.html) and [Google](https://google.com)";
-        let ch = Chapter::new("Foo", src.to_string(), "index.md", Vec::new());
+    fn detect_the_most_basic_link() {
+        let src =
+            "This is a link to [nowhere](http://doesnt.exist/)".to_string();
+        let file = Arc::new(FileMap::new(FileName::virtual_("whatever"), src));
+        let link: Uri = "http://doesnt.exist/".parse().unwrap();
 
-        let should_be = vec![
-            Link {
-                url: String::from("https://google.com"),
-                offset: 43,
-                chapter: &ch,
-            },
-            Link {
-                url: String::from("index.html"),
-                offset: 1,
-                chapter: &ch,
-            },
-        ];
+        let got: Vec<Link> = Links::new(&file).collect();
 
-        let got = collect_links(&ch);
+        assert_eq!(got.len(), 1);
 
-        assert_eq!(got, should_be);
+        // Depends on https://github.com/raphlinus/pulldown-cmark/issues/378
+        // let start = ByteOffset(file.span().start().to_usize() as i64);
+        // let should_be = Link {
+        //     url: link,
+        //     span: ByteSpan::new(ByteIndex(19) + start, ByteIndex(20) start),
+        // };
+        // assert_eq!(got[0], should_be);
+        assert_eq!(got[0].uri, link);
     }
 }

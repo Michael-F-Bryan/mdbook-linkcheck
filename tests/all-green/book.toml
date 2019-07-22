@@ -3,3 +3,9 @@ authors = ["Michael Bryan"]
 multilingual = false
 src = "src"
 title = "All Green"
+
+[output.linkcheck]
+follow-web-links = true
+exclude = [".*nonexistent.*"]
+
+[output.html]
