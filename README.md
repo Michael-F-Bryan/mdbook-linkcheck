@@ -59,6 +59,12 @@ traverse-parent-directories = false
 # If necessary, you can exclude one or more web links from being checked with
 # a list of regular expressions
 exclude = [ "google\\.com" ]
+
+# The User-Agent to use when sending web requests
+user-agent = "mdbook-linkcheck-0.4.0"
+
+# The number of seconds a cached result is valid for (12 hrs by default)
+cache-timeout = 43200
 ```
 
 
