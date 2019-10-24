@@ -21,6 +21,9 @@ pub struct Config {
     /// The number of seconds a cached result is valid for.
     #[serde(default = "default_cache_timeout")]
     pub cache_timeout: u64,
+    /// The policy to use when warnings are encountered.
+    #[serde(default)]
+    pub warning_policy: WarningPolicy,
 }
 
 impl Config {
@@ -45,6 +48,7 @@ impl Default for Config {
             traverse_parent_directories: false,
             exclude: Vec::new(),
             user_agent: default_user_agent(),
+            warning_policy: WarningPolicy::Warn,
             cache_timeout: Config::DEFAULT_CACHE_TIMEOUT.as_secs(),
         }
     }
@@ -97,6 +101,7 @@ impl PartialEq for Config {
             ref exclude,
             ref user_agent,
             cache_timeout,
+            warning_policy,
         } = self;
 
         *follow_web_links == other.follow_web_links
@@ -104,11 +109,28 @@ impl PartialEq for Config {
             && exclude.len() == other.exclude.len()
             && *user_agent == other.user_agent
             && *cache_timeout == other.cache_timeout
+            && *warning_policy == other.warning_policy
             && exclude
                 .iter()
                 .zip(other.exclude.iter())
                 .all(|(l, r)| l.as_str() == r.as_str())
     }
+}
+
+/// How should warnings be treated?
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WarningPolicy {
+    /// Silently ignore them.
+    Ignore,
+    /// Warn the user, but don't fail the linkcheck.
+    Warn,
+    /// Treat warnings as errors.
+    Error,
+}
+
+impl Default for WarningPolicy {
+    fn default() -> WarningPolicy { WarningPolicy::Warn }
 }
 
 #[cfg(test)]
@@ -120,12 +142,14 @@ traverse-parent-directories = true
 exclude = ["google\\.com"]
 user-agent = "Internet Explorer"
 cache-timeout = 3600
+warning-policy = "error"
 "#;
 
     #[test]
     fn deserialize_a_config() {
         let should_be = Config {
             follow_web_links: true,
+            warning_policy: WarningPolicy::Error,
             traverse_parent_directories: true,
             exclude: vec![Regex::new(r"google\.com").unwrap()],
             user_agent: String::from("Internet Explorer"),

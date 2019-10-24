@@ -1,9 +1,9 @@
 use crate::{
     cache::{Cache, CacheEntry},
-    Config, IncompleteLink, Link,
+    Config, IncompleteLink, Link, WarningPolicy,
 };
 use codespan::{Files, Span};
-use codespan_reporting::diagnostic::{Diagnostic, Label};
+use codespan_reporting::diagnostic::{Diagnostic, Label, Severity};
 use either::Either;
 use failure::Error;
 use http::HeaderMap;
@@ -282,9 +282,56 @@ pub struct ValidationOutcome {
 impl ValidationOutcome {
     /// Generate a list of [`Diagnostic`] messages from this
     /// [`ValidationOutcome`].
-    pub fn generate_diagnostics(&self, files: &Files) -> Vec<Diagnostic> {
+    pub fn generate_diagnostics(
+        &self,
+        files: &Files,
+        warning_policy: WarningPolicy,
+    ) -> Vec<Diagnostic> {
         let mut diags = Vec::new();
 
+        self.add_invalid_link_diagnostics(&mut diags);
+
+        match warning_policy {
+            WarningPolicy::Error => self.add_incomplete_link_diagnostics(
+                Severity::Error,
+                &mut diags,
+                files,
+            ),
+            WarningPolicy::Warn => self.add_incomplete_link_diagnostics(
+                Severity::Warning,
+                &mut diags,
+                files,
+            ),
+            WarningPolicy::Ignore => {},
+        }
+
+        diags
+    }
+
+    fn add_incomplete_link_diagnostics(
+        &self,
+        severity: Severity,
+        diags: &mut Vec<Diagnostic>,
+        files: &Files,
+    ) {
+        for incomplete in &self.incomplete_links {
+            let IncompleteLink { ref text, file } = incomplete;
+            let span = resolve_incomplete_link_span(incomplete, files);
+            let msg =
+                format!("Did you forget to define a URL for `{0}`?", text);
+            let label = Label::new(*file, span, msg);
+            let note = format!(
+                "hint: declare the link's URL. For example: `[{}]: http://example.com/`",
+                text
+            );
+            let diag =
+                Diagnostic::new(severity, "Potential incomplete link", label)
+                    .with_notes(vec![note]);
+            diags.push(diag)
+        }
+    }
+
+    fn add_invalid_link_diagnostics(&self, diags: &mut Vec<Diagnostic>) {
         for broken_link in &self.invalid_links {
             let link = &broken_link.link;
             let diag = Diagnostic::new_error(
@@ -297,24 +344,6 @@ impl ValidationOutcome {
             );
             diags.push(diag);
         }
-
-        for incomplete in &self.incomplete_links {
-            let IncompleteLink { ref text, file } = incomplete;
-            let span = resolve_incomplete_link_span(incomplete, files);
-            let msg =
-                format!("Did you forget to define a URL for `{0}`?", text);
-            let label = Label::new(*file, span, msg);
-            let note = format!(
-                "hint: declare the link's URL. For example: `[{}]: http://example.com/`",
-                text
-            );
-            let diag =
-                Diagnostic::new_warning("Potential incomplete link", label)
-                    .with_notes(vec![note]);
-            diags.push(diag)
-        }
-
-        diags
     }
 }
 
