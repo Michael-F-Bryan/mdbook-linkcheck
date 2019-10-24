@@ -9,7 +9,7 @@ fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
 #[test]
 fn check_all_links_in_a_valid_book() {
     let root = test_dir().join("all-green");
-    let expected_valid = vec![
+    let expected_valid = &[
         "./chapter_1.md",
         "nested/index.md",
         "../chapter_1.md",
@@ -22,13 +22,13 @@ fn check_all_links_in_a_valid_book() {
 
     let output = run_link_checker(&root).unwrap();
 
-    assert!(output.invalid_links.is_empty(), "{:?}", output);
+    assert!(output.invalid_links.is_empty(), "{:#?}", output);
     let valid_links: Vec<_> = output
         .valid_links
         .iter()
         .map(|link| link.uri.to_string())
         .collect();
-    assert_eq!(valid_links, expected_valid);
+    assert_same_links(valid_links, expected_valid);
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn correctly_find_broken_links() {
     env_logger::init();
 
     let root = test_dir().join("broken-links");
-    let expected = vec![
+    let expected = &[
         "./foo/bar/baz.html",
         "../../../../../../../../../../../../etc/shadow",
         "./chapter_1.md",
@@ -51,10 +51,27 @@ fn correctly_find_broken_links() {
         .iter()
         .map(|invalid| invalid.link.uri.to_string())
         .collect();
-    assert_eq!(broken, expected);
+    assert_same_links(broken, expected);
     // we also have one incomplete link
     assert_eq!(output.incomplete_links.len(), 1);
     assert_eq!(output.incomplete_links[0].text, "incomplete link");
+}
+
+fn assert_same_links<L, R, P, Q>(left: L, right: R)
+where
+    L: IntoIterator<Item = P>,
+    P: AsRef<str>,
+    R: IntoIterator<Item = Q>,
+    Q: AsRef<str>,
+{
+    let mut left: Vec<_> =
+        left.into_iter().map(|s| s.as_ref().to_string()).collect();
+    left.sort();
+    let mut right: Vec<_> =
+        right.into_iter().map(|s| s.as_ref().to_string()).collect();
+    right.sort();
+
+    assert_eq!(left, right);
 }
 
 fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
