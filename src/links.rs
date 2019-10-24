@@ -51,7 +51,7 @@ impl Link {
             "this operation only makes sense for file URIs"
         );
 
-        let path = Path::new(self.uri.path());
+        let path = decoded_path(self.uri.path());
 
         if path.is_absolute() {
             // absolute paths are resolved by joining the root and the path.
@@ -73,6 +73,13 @@ impl Link {
             got
         }
     }
+}
+
+fn decoded_path(percent_encoded_path: &str) -> PathBuf {
+    percent_encoding::percent_decode_str(percent_encoded_path)
+        .decode_utf8()
+        .map(|p| PathBuf::from(p.into_owned()))
+        .unwrap_or_else(|_| PathBuf::from(percent_encoded_path))
 }
 
 /// Search every file in the [`Files`] and collate all the links that are
@@ -163,5 +170,17 @@ mod tests {
         // };
         // assert_eq!(got[0], should_be);
         assert_eq!(got[0].uri, link);
+    }
+
+    #[test]
+    fn link_path_with_percent_encoding() {
+        let uri = "./TechNote%20094%20Accessing%20Wintech%20download%20site%20Rev%20A.pdf";
+        let should_be = Path::new(
+            "./TechNote 094 Accessing Wintech download site Rev A.pdf",
+        );
+
+        let got = decoded_path(uri);
+
+        assert_eq!(got, should_be);
     }
 }
