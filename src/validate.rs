@@ -1,8 +1,8 @@
 use crate::{
     cache::{Cache, CacheEntry},
-    Config, Link,
+    Config, IncompleteLink, Link,
 };
-use codespan::Files;
+use codespan::{Files, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use either::Either;
 use failure::Error;
@@ -25,8 +25,12 @@ pub fn validate(
     src_dir: &Path,
     cache: &Cache,
     files: &Files,
+    incomplete_links: Vec<IncompleteLink>,
 ) -> Result<ValidationOutcome, Error> {
-    let mut outcome = ValidationOutcome::default();
+    let mut outcome = ValidationOutcome {
+        incomplete_links,
+        ..Default::default()
+    };
 
     let buckets =
         sort_into_buckets(links, |link| outcome.unknown_schema.push(link));
@@ -271,12 +275,14 @@ pub struct ValidationOutcome {
     pub ignored: Vec<Link>,
     /// Links which we don't know how to handle.
     pub unknown_schema: Vec<Link>,
+    /// Potentially incomplete links.
+    pub incomplete_links: Vec<IncompleteLink>,
 }
 
 impl ValidationOutcome {
     /// Generate a list of [`Diagnostic`] messages from this
     /// [`ValidationOutcome`].
-    pub fn generate_diagnostics(&self) -> Vec<Diagnostic> {
+    pub fn generate_diagnostics(&self, files: &Files) -> Vec<Diagnostic> {
         let mut diags = Vec::new();
 
         for broken_link in &self.invalid_links {
@@ -292,7 +298,32 @@ impl ValidationOutcome {
             diags.push(diag);
         }
 
+        for incomplete in &self.incomplete_links {
+            let span = resolve_incomplete_link_span(incomplete, files);
+            let msg = format!(
+                "Did you forget to create a `[{}]: ...` entry?",
+                incomplete.text
+            );
+            let label = Label::new(incomplete.file, span, msg);
+            let diag =
+                Diagnostic::new_warning("Potential incomplete link", label);
+            diags.push(diag)
+        }
+
         diags
+    }
+}
+
+fn resolve_incomplete_link_span(
+    incomplete: &IncompleteLink,
+    files: &Files,
+) -> Span {
+    let needle = format!("[{}]", incomplete.text);
+    let src = files.source(incomplete.file);
+
+    match src.find(&needle).map(|ix| ix as u32) {
+        Some(start_ix) => Span::new(start_ix, start_ix + needle.len() as u32),
+        None => files.source_span(incomplete.file),
     }
 }
 

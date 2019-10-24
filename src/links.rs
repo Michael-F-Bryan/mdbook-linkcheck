@@ -2,6 +2,7 @@ use codespan::{ByteIndex, FileId, Files, Span};
 use http::uri::{Parts, Uri};
 use pulldown_cmark::{Event, OffsetIter, Parser, Tag};
 use std::{
+    cell::RefCell,
     fmt::Debug,
     path::{Path, PathBuf},
 };
@@ -84,14 +85,47 @@ fn decoded_path(percent_encoded_path: &str) -> PathBuf {
 
 /// Search every file in the [`Files`] and collate all the links that are
 /// found.
-pub fn extract_links<I>(target_files: I, files: &Files) -> Vec<Link>
+pub fn extract_links<I>(
+    target_files: I,
+    files: &Files,
+) -> (Vec<Link>, Vec<IncompleteLink>)
 where
     I: IntoIterator<Item = FileId>,
 {
-    target_files
-        .into_iter()
-        .flat_map(|id| Links::new(id, files))
-        .collect()
+    let mut links = Vec::new();
+    let broken_links = RefCell::new(Vec::new());
+
+    for file_id in target_files {
+        let cb = on_broken_links(file_id, &broken_links);
+        links.extend(Links::new(file_id, files, &cb));
+    }
+
+    (links, broken_links.into_inner())
+}
+
+/// Get a closure which can be used as the broken links callback, adding a new
+/// [`IncompleteLink`] to the list.
+fn on_broken_links<'a>(
+    file: FileId,
+    dest: &'a RefCell<Vec<IncompleteLink>>,
+) -> impl Fn(&str, &str) -> Option<(String, String)> + 'a {
+    move |raw, _| {
+        dest.borrow_mut().push(IncompleteLink {
+            text: raw.to_string(),
+            file,
+        });
+        None
+    }
+}
+
+/// A potential link that has a broken reference (e.g `[foo]` when there is no
+/// `[foo]: ...` entry at the bottom).
+#[derive(Debug, Clone, PartialEq)]
+pub struct IncompleteLink {
+    /// The reference name (e.g. the `foo` in `[foo]`).
+    pub text: String,
+    /// Which file was the incomplete link found in?
+    pub file: FileId,
 }
 
 struct Links<'a> {
@@ -101,10 +135,19 @@ struct Links<'a> {
 }
 
 impl<'a> Links<'a> {
-    fn new(file: FileId, files: &'a Files) -> Links<'a> {
+    fn new(
+        file: FileId,
+        files: &'a Files,
+        cb: &'a dyn Fn(&str, &str) -> Option<(String, String)>,
+    ) -> Links<'a> {
         let src = files.source(file);
         Links {
-            events: Parser::new(src).into_offset_iter(),
+            events: Parser::new_with_broken_link_callback(
+                src,
+                pulldown_cmark::Options::all(),
+                Some(cb),
+            )
+            .into_offset_iter(),
             file,
             files,
         }
@@ -158,7 +201,7 @@ mod tests {
         let mut files = Files::new();
         let id = files.add("whatever", src);
 
-        let got: Vec<Link> = Links::new(id, &files).collect();
+        let got: Vec<Link> = Links::new(id, &files, &|_, _| None).collect();
 
         assert_eq!(got.len(), 1);
 
