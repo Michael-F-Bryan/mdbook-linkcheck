@@ -346,18 +346,13 @@ pub struct UnknownScheme(pub Link);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codespan::{ByteOffset, FileMap, FileName};
-    use std::sync::Arc;
+    use codespan::Files;
 
     #[test]
     fn sort_links_into_buckets() {
-        let links = vec![Link::parse(
-            "path/to/file.md",
-            0..1,
-            Arc::new(FileMap::new(FileName::from(""), String::new())),
-            ByteOffset(0),
-        )
-        .unwrap()];
+        let mut files = Files::new();
+        let id = files.add("asd", "");
+        let links = vec![Link::parse("path/to/file.md", 0..1, id).unwrap()];
 
         let got = sort_into_buckets(&links, |unknown| {
             panic!("Unknown schema: {:?}", unknown)

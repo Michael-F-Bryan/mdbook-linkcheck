@@ -142,16 +142,15 @@ impl<'a> Iterator for Links<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codespan::FileName;
 
     #[test]
     fn detect_the_most_basic_link() {
-        let src =
-            "This is a link to [nowhere](http://doesnt.exist/)".to_string();
-        let file = Arc::new(FileMap::new(FileName::virtual_("whatever"), src));
+        let src = "This is a link to [nowhere](http://doesnt.exist/)";
         let link: Uri = "http://doesnt.exist/".parse().unwrap();
+        let mut files = Files::new();
+        let id = files.add("whatever", src);
 
-        let got: Vec<Link> = Links::new(&file).collect();
+        let got: Vec<Link> = Links::new(id, &files).collect();
 
         assert_eq!(got.len(), 1);
 
