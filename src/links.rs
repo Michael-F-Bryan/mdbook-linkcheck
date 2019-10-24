@@ -75,7 +75,7 @@ impl Link {
     }
 }
 
-/// Search every file in the [`CodeMap`] and collate all the links that are
+/// Search every file in the [`Files`] and collate all the links that are
 /// found.
 pub fn extract_links<I>(target_files: I, files: &Files) -> Vec<Link>
 where

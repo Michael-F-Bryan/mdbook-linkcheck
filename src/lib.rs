@@ -70,7 +70,7 @@ pub fn version_check(version: &str) -> Result<(), Error> {
     }
 }
 
-/// A helper for converting between a [`Book`] and a [`CodeMap`].
+/// A helper for reading the chapters of a [`Book`] into memory.
 pub fn load_files_into_memory(book: &Book, dest: &mut Files) -> Vec<FileId> {
     let mut ids = Vec::new();
 
