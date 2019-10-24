@@ -314,6 +314,10 @@ impl ValidationOutcome {
     }
 }
 
+/// HACK: this is a workaround for
+/// [pulldown-cmark#165](https://github.com/raphlinus/pulldown-cmark/issues/165)
+/// which uses good ol' string searching to find where an incomplete link may
+/// have been defined.
 fn resolve_incomplete_link_span(
     incomplete: &IncompleteLink,
     files: &Files,
