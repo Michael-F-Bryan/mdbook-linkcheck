@@ -2,7 +2,8 @@ use crate::{
     cache::{Cache, CacheEntry},
     Config, Link,
 };
-use codespan_reporting::{Diagnostic, Label};
+use codespan::Files;
+use codespan_reporting::diagnostic::{Diagnostic, Label};
 use either::Either;
 use failure::Error;
 use http::HeaderMap;
@@ -23,6 +24,7 @@ pub fn validate(
     cfg: &Config,
     src_dir: &Path,
     cache: &Cache,
+    files: &Files,
 ) -> Result<ValidationOutcome, Error> {
     let mut outcome = ValidationOutcome::default();
 
@@ -35,12 +37,13 @@ pub fn validate(
         cfg.traverse_parent_directories,
         src_dir,
         &mut outcome,
+        files,
     );
 
     if cfg.follow_web_links {
         log::debug!("Checking {} web links", buckets.web.len());
         let mut web = buckets.web;
-        remove_skipped_links(&mut web, &mut outcome, &cfg);
+        remove_skipped_links(&mut web, &mut outcome, &cfg, files);
         validate_web_links(&web, cfg, &mut outcome, cache)?;
     } else {
         log::debug!("Ignoring {} web links", buckets.web.len());
@@ -56,20 +59,20 @@ fn remove_skipped_links(
     links: &mut Vec<Link>,
     outcome: &mut ValidationOutcome,
     cfg: &Config,
+    files: &Files,
 ) {
     links.retain(|link| {
         let uri = link.uri.to_string();
 
         if cfg.should_skip(&uri) {
-            let line_number = link
-                .file
-                .find_line(link.span.start())
-                .expect("The link came from this file");
+            let location =
+                files.location(link.file, link.span.start()).unwrap();
+            let name = files.name(link.file);
             log::debug!(
                 "Skipping \"{}\" in {}, line {}",
                 uri,
-                link.file.name(),
-                line_number.number(),
+                name,
+                location.line,
             );
             outcome.ignored.push(link.clone());
             false
@@ -101,6 +104,7 @@ fn validate_local_links(
     traverse_parent_directories: bool,
     root_dir: &Path,
     outcome: &mut ValidationOutcome,
+    files: &Files,
 ) {
     debug_assert!(
         root_dir.is_absolute(),
@@ -113,7 +117,7 @@ fn validate_local_links(
             continue;
         }
 
-        let path = link.as_filesystem_path(root_dir);
+        let path = link.as_filesystem_path(root_dir, files);
         let link = link.clone();
 
         log::trace!("Checking \"{}\"", path.display());
@@ -264,9 +268,16 @@ impl ValidationOutcome {
     pub fn generate_diagnostics(&self) -> Vec<Diagnostic> {
         let mut diags = Vec::new();
 
-        for link in &self.invalid_links {
-            let diag = Diagnostic::new_error(link.to_string())
-                .with_label(Label::new_primary(link.link.span));
+        for broken_link in &self.invalid_links {
+            let link = &broken_link.link;
+            let diag = Diagnostic::new_error(
+                broken_link.to_string(),
+                Label::new(
+                    link.file,
+                    link.span,
+                    broken_link.reason.to_string(),
+                ),
+            );
             diags.push(diag);
         }
 

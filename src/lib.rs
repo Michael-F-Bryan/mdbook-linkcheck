@@ -37,7 +37,7 @@ pub use crate::{
     },
 };
 
-use codespan::{CodeMap, FileName};
+use codespan::{FileId, Files};
 use failure::{Error, ResultExt};
 use mdbook::book::{Book, BookItem};
 use semver::{Version, VersionReq};
@@ -71,19 +71,20 @@ pub fn version_check(version: &str) -> Result<(), Error> {
 }
 
 /// A helper for converting between a [`Book`] and a [`CodeMap`].
-pub fn book_to_codemap(book: &Book) -> CodeMap {
-    let mut map = CodeMap::new();
+pub fn load_files_into_memory(book: &Book, dest: &mut Files) -> Vec<FileId> {
+    let mut ids = Vec::new();
 
     for item in book.iter() {
         match item {
             BookItem::Chapter(ref ch) => {
-                map.add_filemap(FileName::real(&ch.path), ch.content.clone());
+                let id = dest.add(ch.path.display().to_string(), &ch.content);
+                ids.push(id);
             },
             BookItem::Separator => {},
         }
     }
 
-    map
+    ids
 }
 
 #[cfg(test)]

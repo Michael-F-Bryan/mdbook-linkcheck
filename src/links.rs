@@ -1,4 +1,4 @@
-use codespan::{ByteIndex, ByteOffset, ByteSpan, CodeMap, FileMap};
+use codespan::{ByteIndex, ByteOffset, FileId, Files, Span};
 use http::uri::{Parts, Uri};
 use pulldown_cmark::{Event, OffsetIter, Parser, Tag};
 use std::{
@@ -8,26 +8,25 @@ use std::{
 };
 
 /// A single link, and where it was found in the parent document.
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Link {
     /// The link itself.
     pub uri: Uri,
     /// Where the link lies in its original text.
-    pub span: ByteSpan,
-    /// The [`FileMap`] this link was originally found in.
-    pub file: Arc<FileMap>,
+    pub span: Span,
+    /// The file this link was originally found in.
+    pub file: FileId,
 }
 
 impl Link {
     pub(crate) fn parse(
         uri: &str,
         range: std::ops::Range<usize>,
-        file: Arc<FileMap>,
-        base_offset: ByteOffset,
+        file: FileId,
     ) -> Result<Link, http::Error> {
-        let start = ByteIndex(range.start as u32) + base_offset;
-        let end = ByteIndex(range.end as u32) + base_offset;
-        let span = ByteSpan::new(start, end);
+        let start = ByteIndex(range.start as u32);
+        let end = ByteIndex(range.end as u32);
+        let span = Span::new(start, end);
 
         // it might be a valid URI already
         if let Ok(uri) = uri.parse() {
@@ -42,7 +41,11 @@ impl Link {
         Ok(Link { uri, span, file })
     }
 
-    pub(crate) fn as_filesystem_path(&self, root_dir: &Path) -> PathBuf {
+    pub(crate) fn as_filesystem_path(
+        &self,
+        root_dir: &Path,
+        files: &Files,
+    ) -> PathBuf {
         debug_assert!(
             self.uri.scheme_str().is_none()
                 || self.uri.scheme_str() == Some("file"),
@@ -63,7 +66,7 @@ impl Link {
         } else {
             // This link is relative to the file it was written in (or rather,
             // that file's parent directory)
-            let parent_dir = match self.file.name().as_ref().parent() {
+            let parent_dir = match Path::new(files.name(self.file)).parent() {
                 Some(p) => root_dir.join(p),
                 None => root_dir.to_path_buf(),
             };
@@ -72,43 +75,31 @@ impl Link {
     }
 }
 
-impl PartialEq for Link {
-    fn eq(&self, other: &Self) -> bool {
-        self.uri == other.uri
-            && self.span == other.span
-            && Arc::ptr_eq(&self.file, &other.file)
-    }
-}
-
-impl Debug for Link {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let Link { uri, span, file: _ } = self;
-
-        f.debug_struct("Link")
-            .field("uri", uri)
-            .field("span", span)
-            .finish()
-    }
-}
-
 /// Search every file in the [`CodeMap`] and collate all the links that are
 /// found.
-pub fn extract_links(map: &CodeMap) -> Vec<Link> {
-    map.iter().flat_map(|f| Links::new(f)).collect()
+pub fn extract_links<I>(target_files: I, files: &Files) -> Vec<Link>
+where
+    I: IntoIterator<Item = FileId>,
+{
+    target_files
+        .into_iter()
+        .flat_map(|id| Links::new(id, files))
+        .collect()
 }
 
 struct Links<'a> {
     events: OffsetIter<'a>,
-    file: &'a Arc<FileMap>,
-    base_offset: ByteOffset,
+    file: FileId,
+    files: &'a Files,
 }
 
 impl<'a> Links<'a> {
-    fn new(file: &'a Arc<FileMap>) -> Links<'a> {
+    fn new(file: FileId, files: &'a Files) -> Links<'a> {
+        let src = files.source(file);
         Links {
-            events: Parser::new(file.src().as_ref()).into_offset_iter(),
+            events: Parser::new(src).into_offset_iter(),
             file,
-            base_offset: ByteOffset(i64::from(file.span().start().0)),
+            files,
         }
     }
 }
@@ -128,24 +119,14 @@ impl<'a> Iterator for Links<'a> {
                         range.end
                     );
 
-                    match Link::parse(
-                        &dest,
-                        range.clone(),
-                        Arc::clone(&self.file),
-                        self.base_offset,
-                    ) {
+                    match Link::parse(&dest, range.clone(), self.file) {
                         Ok(link) => return Some(link),
                         Err(e) => {
-                            let line = self
-                                .file
-                                .find_line(
-                                    ByteIndex(range.start as u32)
-                                        + self.base_offset,
-                                )
-                                .expect(
-                                    "The span should always be in this file",
-                                );
-                            log::warn!( "Unable to parse \"{}\" as a URI on line {}: {}", dest, line.number(), e);
+                            let location = self
+                                .files
+                                .location(self.file, range.start as u32)
+                                .unwrap();
+                            log::warn!( "Unable to parse \"{}\" as a URI on line {}: {}", dest, location.line, e);
 
                             continue;
                         },
@@ -179,7 +160,7 @@ mod tests {
         // let start = ByteOffset(file.span().start().to_usize() as i64);
         // let should_be = Link {
         //     url: link,
-        //     span: ByteSpan::new(ByteIndex(19) + start, ByteIndex(20) start),
+        //     span: Span::new(ByteIndex(19) + start, ByteIndex(20) start),
         // };
         // assert_eq!(got[0], should_be);
         assert_eq!(got[0].uri, link);
