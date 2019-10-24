@@ -1,31 +1,123 @@
-language: rust
-cache: cargo
+# Based on the "trust" template v0.1.2
+# https://github.com/japaric/trust/tree/v0.1.2
 
-before_script:
+dist: trusty
+language: rust
+services: docker
+sudo: required
+
+env:
+  global:
+    - CRATE_NAME=mdbook-linkcheck
+
+matrix:
+  include:
+    # Android
+    #- env: TARGET=aarch64-linux-android DISABLE_TESTS=1
+    #- env: TARGET=arm-linux-androideabi DISABLE_TESTS=1
+    #- env: TARGET=armv7-linux-androideabi DISABLE_TESTS=1
+    #- env: TARGET=i686-linux-android DISABLE_TESTS=1
+    #- env: TARGET=x86_64-linux-android DISABLE_TESTS=1
+
+    # iOS
+    #- env: TARGET=aarch64-apple-ios DISABLE_TESTS=1
+    #  os: osx
+    #- env: TARGET=armv7-apple-ios DISABLE_TESTS=1
+    #  os: osx
+    #- env: TARGET=armv7s-apple-ios DISABLE_TESTS=1
+    #  os: osx
+    #- env: TARGET=i386-apple-ios DISABLE_TESTS=1
+    #  os: osx
+    #- env: TARGET=x86_64-apple-ios DISABLE_TESTS=1
+    #  os: osx
+
+    # Linux
+    #- env: TARGET=aarch64-unknown-linux-gnu
+    #- env: TARGET=arm-unknown-linux-gnueabi
+    #- env: TARGET=armv7-unknown-linux-gnueabihf
+    #- env: TARGET=i686-unknown-linux-gnu
+    #- env: TARGET=i686-unknown-linux-musl
+    #- env: TARGET=mips-unknown-linux-gnu
+    #- env: TARGET=mips64-unknown-linux-gnuabi64
+    #- env: TARGET=mips64el-unknown-linux-gnuabi64
+    #- env: TARGET=mipsel-unknown-linux-gnu
+    #- env: TARGET=powerpc-unknown-linux-gnu
+    #- env: TARGET=powerpc64-unknown-linux-gnu
+    #- env: TARGET=powerpc64le-unknown-linux-gnu
+    #- env: TARGET=s390x-unknown-linux-gnu DISABLE_TESTS=1
+    - env: TARGET=x86_64-unknown-linux-gnu
+    #- env: TARGET=x86_64-unknown-linux-musl
+
+    # OSX
+    #- env: TARGET=i686-apple-darwin
+    #  os: osx
+    - env: TARGET=x86_64-apple-darwin
+      os: osx
+
+    # *BSD
+    #- env: TARGET=i686-unknown-freebsd DISABLE_TESTS=1
+    #- env: TARGET=x86_64-unknown-freebsd DISABLE_TESTS=1
+    #- env: TARGET=x86_64-unknown-netbsd DISABLE_TESTS=1
+
+    # Windows
+    - env: TARGET=x86_64-pc-windows-gnu
+
+    # Bare metal
+    # These targets don't support std and as such are likely not suitable for
+    # most crates.
+    # - env: TARGET=thumbv6m-none-eabi
+    # - env: TARGET=thumbv7em-none-eabi
+    # - env: TARGET=thumbv7em-none-eabihf
+    # - env: TARGET=thumbv7m-none-eabi
+
+    # Testing other channels
+    - env: TARGET=x86_64-unknown-linux-gnu
+      rust: nightly
+    - env: TARGET=x86_64-apple-darwin
+      os: osx
+      rust: nightly
+
+before_install:
   - set -e
+  - rustup self update
+
+install:
+  - sh ci/install.sh
+  - source ~/.cargo/env || true
 
 script:
-  - cargo build --verbose
-  - cargo test --verbose
+  - bash ci/script.sh
+
+after_script: set +e
 
 before_deploy:
-  - cargo doc --verbose
-  - echo '<head><meta http-equiv="refresh" content="0; URL=mdbook_linkcheck/index.html" /></head>' > target/doc/index.html
+  - sh ci/before_deploy.sh
 
 deploy:
-  - provider: pages
-    skip-cleanup: true
-    github-token: "$GITHUB_TOKEN"
-    keep-history: false
-    local-dir: target/doc
-    on:
-      branch: master
-      rust: stable
+  # TODO update `api_key.secure`
+  # - Create a `public_repo` GitHub token. Go to: https://github.com/settings/tokens/new
+  # - Encrypt it: `travis encrypt 0123456789012345678901234567890123456789
+  # - Paste the output down here
+  provider: releases
+  api_key: $GITHUB_TOKEN
+  file_glob: true
+  file: $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
+  on:
+    condition: $TRAVIS_RUST_VERSION = stable
+    tags: true
+  skip_cleanup: true
+
+cache: cargo
+before_cache:
+  # Travis can't cache files that are not readable by "others"
+  - chmod -R a+r $HOME/.cargo
+
+branches:
+  only:
+    # release tags
+    - /^v\d+\.\d+\.\d+.*$/
+    - master
 
 notifications:
   email:
     on_success: never
-
-env:
-  global:
-    secure: ihE5jTeM2g2CwqShrz4nKbnVgN+5IuaZ+PygLVp3wFUuNh8MbUsy8t1C6HXJRYzQHB67/vBuR+S//4LNBD12KZ7P8IEgkrxypD8BcJaU9Y0dXfqLrH2pushHYAGnmsbMIySLwGumBFN/aYaAsN00ef/KzEssEDR5R+oIvvqkh1CkQR12pXrKvE2+N7UxvK/3/Cb9UZA+5P3FRCxct2G+J8Rfhb4AA5acUODf/wwzRCyvhAgSovnSLQPHkvSASSI8m936PfsB+nKsfck144v7Ag9/tTRJbAXsP56Uj4LKRMfAv3PqSlp9kIv4S9mAQIq6dUJIZjewbPaawAB4x7Ha1HJghduqpyXzhKojiDh9E7UsEr1XZNG1DjBs8nK4N+i6pf053CAR12T5LgOMrTBohQPeQ0HOCZjJwmrgeGeTTaMTBlonRyetNwOXLSH+WQWiX3MJi6fD4WPq0j/ZRMf40zky5tNAMgUTYLnA6pAa54hSeAFa2MSjxJ7CTdW5hokbjjn7ZTxFb8uZlmsh2VseM8ZCwfO/JjZDX9YJ3liV1taG9hzlzJr8ozEwEvg2gSBg5c/Xh/HD25mraxaJI1zGrL/gGC2ogb/DSQEdhTBgzpuCZFyQv++852j1y5lKFH683YDR1U3o6ao1oxFoYXj/GTXUmtM7rZv24yacBkY3kYg=
