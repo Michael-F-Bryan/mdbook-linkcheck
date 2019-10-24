@@ -76,6 +76,8 @@ where
 
 fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
     assert!(root.exists());
+    std::env::set_var("RUST_LOG", "mdbook_linkcheck=debug");
+    env_logger::try_init().ok();
 
     let mut md = MDBook::load(root).unwrap();
     let cfg = Config {
