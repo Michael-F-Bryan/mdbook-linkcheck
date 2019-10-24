@@ -117,8 +117,19 @@ fn validate_local_links(
             continue;
         }
 
-        let path = link.as_filesystem_path(root_dir, files);
         let link = link.clone();
+        let path = link.as_filesystem_path(root_dir, files);
+        let path = match path.canonicalize() {
+            Ok(p) => p,
+            Err(e) => {
+                log::warn!("Unable to canonicalize {}: {}", path.display(), e);
+                outcome.invalid_links.push(InvalidLink {
+                    link,
+                    reason: Reason::FileNotFound,
+                });
+                continue;
+            },
+        };
 
         log::trace!("Checking \"{}\"", path.display());
 

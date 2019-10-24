@@ -69,7 +69,8 @@ impl Link {
                 Some(p) => root_dir.join(p),
                 None => root_dir.to_path_buf(),
             };
-            parent_dir.join(path)
+            let got = parent_dir.join(path);
+            got
         }
     }
 }

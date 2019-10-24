@@ -9,15 +9,40 @@ fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
 #[test]
 fn check_all_links_in_a_valid_book() {
     let root = test_dir().join("all-green");
+    let expected_valid = vec![
+        "./chapter_1.md",
+        "nested/index.md",
+        "../chapter_1.md",
+        "/chapter_1.md",
+        "../chapter_1.md",
+        "/chapter_1.md",
+        "./sibling.md",
+        "https://www.google.com/",
+    ];
+
     let output = run_link_checker(&root).unwrap();
 
     assert!(output.invalid_links.is_empty(), "{:?}", output);
+    let valid_links: Vec<_> = output
+        .valid_links
+        .iter()
+        .map(|link| link.uri.to_string())
+        .collect();
+    assert_eq!(valid_links, expected_valid);
 }
 
 #[test]
 fn correctly_find_broken_links() {
+    env_logger::init();
+
     let root = test_dir().join("broken-links");
-    let expected = vec!["asd"];
+    let expected = vec![
+        "./foo/bar/baz.html",
+        "../../../../../../../../../../../../etc/shadow",
+        "./chapter_1.md",
+        "./second/directory.md",
+        "http://this-doesnt-exist.com.au.nz.us/",
+    ];
 
     let output = run_link_checker(&root).unwrap();
 
