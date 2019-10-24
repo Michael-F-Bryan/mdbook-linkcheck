@@ -7,3 +7,5 @@
 [This chapter doesn't exist](./foo/bar/baz.html)
 
 [It would be bad if this worked...](../../../../../../../../../../../../etc/shadow)
+
+[incomplete link]

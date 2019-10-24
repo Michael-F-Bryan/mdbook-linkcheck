@@ -52,6 +52,9 @@ fn correctly_find_broken_links() {
         .map(|invalid| invalid.link.uri.to_string())
         .collect();
     assert_eq!(broken, expected);
+    // we also have one incomplete link
+    assert_eq!(output.incomplete_links.len(), 1);
+    assert_eq!(output.incomplete_links[0].text, "incomplete link");
 }
 
 fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
