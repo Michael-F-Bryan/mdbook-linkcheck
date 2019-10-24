@@ -38,7 +38,7 @@ fn main() -> Result<(), Error> {
         cache.cache_hits(),
         cache.cache_misses()
     );
-    let diags = outcome.generate_diagnostics();
+    let diags = outcome.generate_diagnostics(&files);
     report_errors(&files, &diags, args.colour)?;
 
     save_cache(&cache_file, &cache);
@@ -128,11 +128,22 @@ fn check_links(
     let mut files = Files::new();
     let file_ids =
         mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);
-    let links = mdbook_linkcheck::extract_links(file_ids, &files);
-    log::info!("Found {} links", links.len());
+    let (links, incomplete_links) =
+        mdbook_linkcheck::extract_links(file_ids, &files);
+    log::info!(
+        "Found {} links ({} incomplete links)",
+        links.len(),
+        incomplete_links.len()
+    );
     let src = ctx.source_dir();
-    let outcome =
-        mdbook_linkcheck::validate(&links, &cfg, &src, &cache, &files)?;
+    let outcome = mdbook_linkcheck::validate(
+        &links,
+        &cfg,
+        &src,
+        &cache,
+        &files,
+        incomplete_links,
+    )?;
 
     Ok((files, outcome))
 }
