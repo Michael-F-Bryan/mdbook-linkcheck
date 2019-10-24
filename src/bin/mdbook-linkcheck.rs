@@ -1,7 +1,7 @@
-use codespan::CodeMap;
+use codespan::Files;
 use codespan_reporting::{
-    termcolor::{ColorChoice, StandardStream},
-    Diagnostic, Severity,
+    diagnostic::{Diagnostic, Severity},
+    term::termcolor::{ColorChoice, StandardStream},
 };
 use failure::{Error, ResultExt, SyncFailure};
 use mdbook::{renderer::RenderContext, MDBook};
@@ -32,14 +32,14 @@ fn main() -> Result<(), Error> {
     let cache_file = ctx.destination.join("cache.json");
     let cache = load_cache(&cache_file);
 
-    let (code, outcome) = check_links(&ctx, &cache)?;
+    let (files, outcome) = check_links(&ctx, &cache)?;
     log::debug!(
         "cache hits: {}, cache misses: {}",
         cache.cache_hits(),
         cache.cache_misses()
     );
     let diags = outcome.generate_diagnostics();
-    report_errors(&code, &diags, args.colour)?;
+    report_errors(&files, &diags, args.colour)?;
 
     save_cache(&cache_file, &cache);
 
@@ -94,14 +94,15 @@ fn save_cache(filename: &Path, cache: &Cache) {
 }
 
 fn report_errors(
-    code: &CodeMap,
+    files: &Files,
     diags: &[Diagnostic],
     colour: ColorChoice,
 ) -> Result<(), Error> {
     let mut writer = StandardStream::stderr(colour);
+    let cfg = codespan_reporting::term::Config::default();
 
     for diag in diags {
-        codespan_reporting::emit(&mut writer, code, diag)?;
+        codespan_reporting::term::emit(&mut writer, &cfg, files, diag)?;
     }
 
     Ok(())
@@ -110,7 +111,7 @@ fn report_errors(
 fn check_links(
     ctx: &RenderContext,
     cache: &Cache,
-) -> Result<(CodeMap, ValidationOutcome), Error> {
+) -> Result<(Files, ValidationOutcome), Error> {
     log::info!("Started the link checker");
 
     mdbook_linkcheck::version_check(&ctx.version)?;
@@ -124,13 +125,16 @@ fn check_links(
     }
 
     log::info!("Scanning book for links");
-    let codemap = mdbook_linkcheck::book_to_codemap(&ctx.book);
-    let links = mdbook_linkcheck::extract_links(&codemap);
+    let mut files = Files::new();
+    let file_ids =
+        mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);
+    let links = mdbook_linkcheck::extract_links(file_ids, &files);
     log::info!("Found {} links", links.len());
     let src = ctx.source_dir();
-    let outcome = mdbook_linkcheck::validate(&links, &cfg, &src, &cache)?;
+    let outcome =
+        mdbook_linkcheck::validate(&links, &cfg, &src, &cache, &files)?;
 
-    Ok((codemap, outcome))
+    Ok((files, outcome))
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -151,9 +155,9 @@ struct Args {
         short = "c",
         long = "colour",
         help = "Output colouring",
-        parse(try_from_str = "parse_colour"),
+        parse(try_from_str = parse_colour),
         default_value = "auto",
-        raw(possible_values = "&[\"always\", \"auto\", \"never\"]")
+        possible_values = &["always", "auto", "never"]
     )]
     colour: ColorChoice,
 }

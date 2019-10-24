@@ -1,10 +1,9 @@
-use codespan::{ByteIndex, ByteOffset, FileId, Files, Span};
+use codespan::{ByteIndex, FileId, Files, Span};
 use http::uri::{Parts, Uri};
 use pulldown_cmark::{Event, OffsetIter, Parser, Tag};
 use std::{
-    fmt::{self, Debug, Formatter},
+    fmt::Debug,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 /// A single link, and where it was found in the parent document.
