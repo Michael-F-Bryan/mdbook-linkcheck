@@ -299,14 +299,18 @@ impl ValidationOutcome {
         }
 
         for incomplete in &self.incomplete_links {
+            let IncompleteLink { ref text, file } = incomplete;
             let span = resolve_incomplete_link_span(incomplete, files);
-            let msg = format!(
-                "Did you forget to create a `[{}]: ...` entry?",
-                incomplete.text
+            let msg =
+                format!("Did you forget to define a URL for `{0}`?", text);
+            let label = Label::new(*file, span, msg);
+            let note = format!(
+                "hint: declare the link's URL. For example: `[{}]: http://example.com/`",
+                text
             );
-            let label = Label::new(incomplete.file, span, msg);
             let diag =
-                Diagnostic::new_warning("Potential incomplete link", label);
+                Diagnostic::new_warning("Potential incomplete link", label)
+                    .with_notes(vec![note]);
             diags.push(diag)
         }
 
