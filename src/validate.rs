@@ -123,7 +123,7 @@ fn validate_local_links(
 
         let link = link.clone();
         let path = link.as_filesystem_path(root_dir, files);
-        let path = match path.canonicalize() {
+        let path = match dunce::canonicalize(&path) {
             Ok(p) => p,
             Err(e) => {
                 log::warn!("Unable to canonicalize {}: {}", path.display(), e);

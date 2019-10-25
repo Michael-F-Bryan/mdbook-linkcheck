@@ -25,13 +25,17 @@ fn check_all_links_in_a_valid_book() {
 
     let output = run_link_checker(&root).unwrap();
 
-    assert!(output.invalid_links.is_empty(), "{:#?}", output);
     let valid_links: Vec<_> = output
         .valid_links
         .iter()
         .map(|link| link.uri.to_string())
         .collect();
-    assert_same_links(valid_links, expected_valid);
+    assert_same_links(expected_valid, valid_links);
+    assert!(
+        output.invalid_links.is_empty(),
+        "Found invalid links: {:?}",
+        output.invalid_links
+    );
 }
 
 #[test]
