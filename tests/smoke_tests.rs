@@ -36,8 +36,6 @@ fn check_all_links_in_a_valid_book() {
 
 #[test]
 fn correctly_find_broken_links() {
-    env_logger::init();
-
     let root = test_dir().join("broken-links");
     let expected = &[
         "./foo/bar/baz.html",
