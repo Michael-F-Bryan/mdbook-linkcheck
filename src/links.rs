@@ -4,7 +4,7 @@ use pulldown_cmark::{Event, OffsetIter, Parser, Tag};
 use std::{
     cell::RefCell,
     fmt::Debug,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 /// A single link, and where it was found in the parent document.
@@ -57,23 +57,34 @@ impl Link {
         if path.is_absolute() {
             // absolute paths are resolved by joining the root and the path.
             // Note that you can't use Path::join() with another absolute path
-            let mut full_path = root_dir.to_path_buf();
-            full_path.extend(
-                path.components()
-                    .filter(|&c| c != std::path::Component::RootDir),
-            );
-            full_path
+            concat_paths(root_dir, &path)
         } else {
             // This link is relative to the file it was written in (or rather,
             // that file's parent directory)
-            let parent_dir = match Path::new(files.name(self.file)).parent() {
-                Some(p) => root_dir.join(p),
-                None => root_dir.to_path_buf(),
+            let src_file = Path::new(files.name(self.file));
+            let src_file = if src_file.is_relative() {
+                root_dir.join(src_file)
+            } else {
+                src_file.to_path_buf()
             };
-            let got = parent_dir.join(path);
-            got
+            let parent_dir = src_file.parent().unwrap_or(Path::new("."));
+            concat_paths(parent_dir, &path)
         }
     }
+}
+
+/// Concatenate two paths, skipping any prefix components (e.g. `C:` or `/`) in
+/// the second path.
+fn concat_paths(root: &Path, tail: &Path) -> PathBuf {
+    let mut path = root.to_path_buf();
+
+    let tail = tail.components().skip_while(|cmp| match cmp {
+        Component::RootDir | Component::Prefix(_) => true,
+        _ => false,
+    });
+    path.extend(tail);
+
+    path
 }
 
 fn decoded_path(percent_encoded_path: &str) -> PathBuf {

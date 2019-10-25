@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate pretty_assertions;
+
 use codespan::Files;
 use failure::Error;
 use mdbook::{renderer::RenderContext, MDBook};
@@ -91,10 +94,12 @@ fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
     let ctx = RenderContext::new(root, md.book, md.config, root.to_path_buf());
 
     let mut files = Files::new();
+    let src = ctx.source_dir().canonicalize().unwrap();
+
     let file_ids =
         mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);
     let (links, incomplete) = mdbook_linkcheck::extract_links(file_ids, &files);
-    let src = ctx.source_dir();
+
     let cache = Cache::default();
     mdbook_linkcheck::validate(&links, &cfg, &src, &cache, &files, incomplete)
 }

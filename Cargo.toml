@@ -35,5 +35,5 @@ either = "1.5"
 percent-encoding = "2.1.0"
 
 [dev-dependencies]
-pretty_assertions = "0.6"
+pretty_assertions = "0.6.1"
 toml = "0.5"
