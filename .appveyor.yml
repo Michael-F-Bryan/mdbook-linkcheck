@@ -4,7 +4,7 @@
 environment:
   global:
     RUST_VERSION: stable
-
+    RUST_BACKTRACE: 1
     CRATE_NAME: mdbook-linkcheck
 
   matrix:

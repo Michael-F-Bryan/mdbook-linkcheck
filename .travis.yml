@@ -9,6 +9,7 @@ sudo: required
 env:
   global:
     - CRATE_NAME=mdbook-linkcheck
+    - RUST_BACKTRACE=1
 
 matrix:
   include:
