@@ -65,6 +65,12 @@ user-agent = "mdbook-linkcheck-0.4.0"
 
 # The number of seconds a cached result is valid for (12 hrs by default)
 cache-timeout = 43200
+
+# How should warnings be treated?
+#
+# - "warn" will emit warning messages
+# - "error" treats all warnings as errors, failing the linkcheck
+# - "ignore" will ignore warnings, suppressing diagnostic messages and allowing
+#   the linkcheck to continuing
+warning-policy = "warn"
 ```
-
-
