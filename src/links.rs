@@ -54,7 +54,7 @@ impl Link {
 
         let path = decoded_path(self.uri.path());
 
-        if path.is_absolute() {
+        if path.has_root() {
             // absolute paths are resolved by joining the root and the path.
             // Note that you can't use Path::join() with another absolute path
             concat_paths(root_dir, &path)
