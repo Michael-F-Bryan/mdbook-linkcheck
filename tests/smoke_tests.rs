@@ -96,7 +96,7 @@ fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
     let ctx = RenderContext::new(root, md.book, md.config, root.to_path_buf());
 
     let mut files = Files::new();
-    let src = ctx.source_dir().canonicalize().unwrap();
+    let src = dunce::canonicalize(ctx.source_dir()).unwrap();
 
     let file_ids =
         mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);

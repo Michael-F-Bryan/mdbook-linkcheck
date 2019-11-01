@@ -11,7 +11,7 @@ fn main() -> Result<(), Error> {
     // get a `RenderContext`, either from stdin (because we're used as a plugin)
     // or by instrumenting MDBook directly (in standalone mode).
     let ctx: RenderContext = if args.standalone {
-        let md = MDBook::load(args.root.canonicalize()?)
+        let md = MDBook::load(dunce::canonicalize(&args.root)?)
             .map_err(SyncFailure::new)?;
         let destination = md.build_dir_for("linkcheck");
         RenderContext::new(md.root, md.book, md.config, destination)

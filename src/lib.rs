@@ -163,9 +163,7 @@ fn check_links(
         links.len(),
         incomplete_links.len()
     );
-    let src = ctx
-        .source_dir()
-        .canonicalize()
+    let src = dunce::canonicalize(ctx.source_dir())
         .context("Unable to resolve the source directory")?;
     let outcome =
         crate::validate(&links, &cfg, &src, &cache, &files, incomplete_links)?;
