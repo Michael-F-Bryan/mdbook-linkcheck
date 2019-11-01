@@ -9,9 +9,6 @@
 A backend for `mdbook` which will check your links for you. For use alongside
 the built-in HTML renderer.
 
-> **Warning:** Not 100% complete. May eat your laundry!
-
-
 ## Getting Started
 
 First you'll need to install `mdbook-linkcheck`.

@@ -10,6 +10,7 @@ use http::HeaderMap;
 use rayon::prelude::*;
 use reqwest::{Client, StatusCode};
 use std::{
+    ffi::OsStr,
     fmt::{self, Display, Formatter},
     path::Path,
     time::{Duration, SystemTime},
@@ -121,39 +122,65 @@ fn validate_local_links(
             continue;
         }
 
-        let link = link.clone();
         let path = link.as_filesystem_path(root_dir, files);
-        let path = match dunce::canonicalize(&path) {
-            Ok(p) => p,
-            Err(e) => {
-                log::warn!("Unable to canonicalize {}: {}", path.display(), e);
-                outcome.invalid_links.push(InvalidLink {
-                    link,
-                    reason: Reason::FileNotFound,
-                });
-                continue;
-            },
-        };
+        match validate_local_link(
+            link,
+            root_dir,
+            &path,
+            traverse_parent_directories,
+        ) {
+            Ok(()) => outcome.valid_links.push(link.clone()),
+            Err(e) => outcome.invalid_links.push(e),
+        }
+    }
+}
 
-        log::trace!("Checking \"{}\"", path.display());
+fn validate_local_link(
+    link: &Link,
+    root_dir: &Path,
+    path: &Path,
+    traverse_parent_directories: bool,
+) -> Result<(), InvalidLink> {
+    let path = match dunce::canonicalize(&path) {
+        Ok(p) => p,
 
-        if !path.starts_with(root_dir) && !traverse_parent_directories {
-            log::trace!(
-                "It lies outside the root directory and that is forbidden"
+        // as a special case markdown files can sometimes be linked to as
+        // blah.html
+        Err(_) if path.extension() == Some(OsStr::new("html")) => {
+            let path = path.with_extension("md");
+            return validate_local_link(
+                link,
+                root_dir,
+                &path,
+                traverse_parent_directories,
             );
-            outcome.invalid_links.push(InvalidLink {
-                link,
-                reason: Reason::TraversesParentDirectories,
-            });
-        } else if file_exists(&path) {
-            outcome.valid_links.push(link);
-        } else {
-            log::trace!("It doesn't exist");
-            outcome.invalid_links.push(InvalidLink {
-                link,
+        },
+
+        Err(e) => {
+            log::warn!("Unable to canonicalize {}: {}", path.display(), e);
+            return Err(InvalidLink {
+                link: link.clone(),
                 reason: Reason::FileNotFound,
             });
-        }
+        },
+    };
+
+    log::trace!("Checking \"{}\"", path.display());
+
+    if !path.starts_with(root_dir) && !traverse_parent_directories {
+        log::trace!("It lies outside the root directory and that is forbidden");
+        Err(InvalidLink {
+            link: link.clone(),
+            reason: Reason::TraversesParentDirectories,
+        })
+    } else if file_exists(&path) {
+        Ok(())
+    } else {
+        log::trace!("It doesn't exist");
+        Err(InvalidLink {
+            link: link.clone(),
+            reason: Reason::FileNotFound,
+        })
     }
 }
 

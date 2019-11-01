@@ -14,6 +14,7 @@ fn check_all_links_in_a_valid_book() {
     let root = test_dir().join("all-green");
     let expected_valid = &[
         "./chapter_1.md",
+        "./chapter_1.html",
         "nested/index.md",
         "../chapter_1.md",
         "/chapter_1.md",
