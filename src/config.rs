@@ -69,12 +69,12 @@ mod regex_serde {
     where
         S: Serializer,
     {
-        let mut seq = ser.serialize_seq(Some(re.len()))?;
+        let mut sequence = ser.serialize_seq(Some(re.len()))?;
 
         for pattern in re {
-            seq.serialize_element(pattern.as_str())?;
+            sequence.serialize_element(pattern.as_str())?;
         }
-        seq.end()
+        sequence.end()
     }
 
     pub fn deserialize<'de, D>(de: D) -> Result<Vec<Regex>, D::Error>

@@ -67,7 +67,8 @@ impl Link {
             } else {
                 src_file.to_path_buf()
             };
-            let parent_dir = src_file.parent().unwrap_or(Path::new("."));
+            let parent_dir =
+                src_file.parent().unwrap_or_else(|| Path::new("."));
             concat_paths(parent_dir, &path)
         }
     }
@@ -90,13 +91,16 @@ fn concat_paths(root: &Path, tail: &Path) -> PathBuf {
 fn decoded_path(percent_encoded_path: &str) -> PathBuf {
     percent_encoding::percent_decode_str(percent_encoded_path)
         .decode_utf8()
-        .map(|p| PathBuf::from(p.into_owned()))
-        .unwrap_or_else(|_| PathBuf::from(percent_encoded_path))
+        .ok()
+        .map_or_else(
+            || PathBuf::from(percent_encoded_path),
+            |p| PathBuf::from(p.into_owned()),
+        )
 }
 
 /// Search every file in the [`Files`] and collate all the links that are
 /// found.
-pub fn extract_links<I>(
+pub fn extract<I>(
     target_files: I,
     files: &Files,
 ) -> (Vec<Link>, Vec<IncompleteLink>)
@@ -108,6 +112,7 @@ where
 
     for file_id in target_files {
         let cb = on_broken_links(file_id, &broken_links);
+        log::debug!("Scanning {}", files.name(file_id));
         links.extend(Links::new(file_id, files, &cb));
     }
 
@@ -121,6 +126,8 @@ fn on_broken_links<'a>(
     dest: &'a RefCell<Vec<IncompleteLink>>,
 ) -> impl Fn(&str, &str) -> Option<(String, String)> + 'a {
     move |raw, _| {
+        log::debug!("Found a (possibly) broken link to [{}]", raw);
+
         dest.borrow_mut().push(IncompleteLink {
             text: raw.to_string(),
             file,
@@ -174,10 +181,11 @@ impl<'a> Iterator for Links<'a> {
                 Event::Start(Tag::Link(_, dest, _))
                 | Event::Start(Tag::Image(_, dest, _)) => {
                     log::trace!(
-                        "Found \"{}\" at {}..{}",
+                        "Found \"{}\" at {}..{} of file {:?}",
                         dest,
                         range.start,
-                        range.end
+                        range.end,
+                        self.file,
                     );
 
                     match Link::parse(&dest, range.clone(), self.file) {

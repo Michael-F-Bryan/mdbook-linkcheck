@@ -31,7 +31,7 @@ mod validate;
 pub use crate::{
     cache::Cache,
     config::{Config, WarningPolicy},
-    links::{extract_links, IncompleteLink, Link},
+    links::{extract as extract_links, IncompleteLink, Link},
     validate::{
         validate, InvalidLink, Reason, UnknownScheme, ValidationOutcome,
     },
