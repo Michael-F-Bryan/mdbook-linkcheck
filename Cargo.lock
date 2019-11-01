@@ -747,7 +747,7 @@ dependencies = [
 
 [[package]]
 name = "mdbook-linkcheck"
-version = "0.5.0"
+version = "0.5.1-alpha.0"
 dependencies = [
  "codespan 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "codespan-reporting 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
