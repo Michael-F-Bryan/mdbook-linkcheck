@@ -14,7 +14,16 @@ the built-in HTML renderer.
 First you'll need to install `mdbook-linkcheck`.
 
 ```
-$ cargo install mdbook-linkcheck
+cargo install mdbook-linkcheck
+```
+
+If you don't want to install from source (which often takes a while) you can
+grab an executable from [GitHub Releases][releases] or use this line of
+`curl`:
+
+```console
+curl -LSfs https://japaric.github.io/trust/install.sh | \
+    sh -s -- --git Michael-F-Bryan/mdbook-linkcheck
 ```
 
 Next you'll need to update your `book.toml` to let `mdbook` know it needs to
@@ -72,3 +81,5 @@ cache-timeout = 43200
 #   the linkcheck to continuing
 warning-policy = "warn"
 ```
+
+[releases]: https://github.com/Michael-F-Bryan/mdbook-linkcheck/releases
