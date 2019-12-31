@@ -430,6 +430,18 @@ pub enum Reason {
     Client(reqwest::Error),
 }
 
+impl Reason {
+    /// A convenience function for determining if the underlying request timed
+    /// out.
+    pub fn timed_out(&self) -> bool {
+        if let Reason::Client(ref inner) = self {
+            inner.timed_out()
+        } else {
+            false
+        }
+    }
+}
+
 impl Display for Reason {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
