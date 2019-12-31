@@ -46,6 +46,14 @@ should *Just Work*.
 $ mdbook build
 ```
 
+> **Note:** When multiple `[output]` items are specified, `mdbook` tries to
+> ensure that each `[output]` gets its own sub-directory within the `build-dir`
+> (`book/` by default).
+>
+> That means if you go from only having the HTML renderer enabled to enabling
+> both HTML and the linkchecker, your HTML will be placed in `book/html/`
+> instead of just `book/` like before.
+
 ## Configuration
 
 The link checker's behaviour can be configured by setting options under the
