@@ -1,6 +1,8 @@
+use std::convert::TryFrom;
 use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
 use std::time::Duration;
+
 
 /// The configuration options available with this backend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +26,17 @@ pub struct Config {
     /// The policy to use when warnings are encountered.
     #[serde(default)]
     pub warning_policy: WarningPolicy,
+    /// The map of regexes representing sets of web sites and
+    /// the list of HTTP headers that must be sent to matching sites.
+    #[serde(with = "headers_serde")]
+    pub http_headers: Vec<(Regex, Vec<HttpHeader>)>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[serde(try_from = "String", into = "String")]
+pub struct HttpHeader {
+    pub name: String,
+    pub value: String
 }
 
 impl Config {
@@ -48,11 +61,39 @@ impl Default for Config {
             traverse_parent_directories: false,
             exclude: Vec::new(),
             user_agent: default_user_agent(),
+            http_headers: Vec::new(),
             warning_policy: WarningPolicy::Warn,
             cache_timeout: Config::DEFAULT_CACHE_TIMEOUT.as_secs(),
         }
     }
 }
+
+impl TryFrom<String> for HttpHeader {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, String> {
+        match s.find(": ") {
+            Some(idx) => {
+                let name = s[..idx].to_string();
+                let value = s[idx + 2..].to_string();
+
+                Ok(HttpHeader { name, value })
+            }
+
+            None => {
+                Err(format!("The `{}` HTTP header must contain `: ` but it doesn't", s))
+            }
+        }
+    }
+}
+
+impl Into<String> for HttpHeader {
+    fn into(self) -> String {
+        let HttpHeader { name, value } = self;
+        format!("{}: {}", name, value)
+    }
+}
+
 
 fn default_cache_timeout() -> u64 { Config::DEFAULT_CACHE_TIMEOUT.as_secs() }
 fn default_user_agent() -> String { Config::DEFAULT_USER_AGENT.to_string() }
@@ -93,6 +134,46 @@ mod regex_serde {
     }
 }
 
+
+mod headers_serde {
+    use regex::Regex;
+    use std::collections::HashMap;
+    use serde::{
+        de::{Deserialize, Deserializer, Error},
+        ser::{Serialize, Serializer},
+    };
+
+    use super::HttpHeader;
+
+    #[allow(clippy::ptr_arg)]
+    pub fn serialize<S>(re: &Vec<(Regex, Vec<HttpHeader>)>, ser: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut table = HashMap::with_capacity(re.len());
+        for (pattern, headers) in re {
+            table.insert(pattern.as_str(), headers);
+        }
+
+        table.serialize(ser)
+    }
+
+    pub fn deserialize<'de, D>(de: D) -> Result<Vec<(Regex, Vec<HttpHeader>)>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = HashMap::<String, Vec<HttpHeader>>::deserialize(de)?;
+        let mut patterns = Vec::new();
+
+        for (pat, headers) in raw {
+            let re = Regex::new(&pat).map_err(D::Error::custom)?;
+            patterns.push((re, headers));
+        }
+
+        Ok(patterns)
+    }
+}
+
 impl PartialEq for Config {
     fn eq(&self, other: &Config) -> bool {
         let Config {
@@ -100,6 +181,7 @@ impl PartialEq for Config {
             traverse_parent_directories,
             ref exclude,
             ref user_agent,
+            ref http_headers,
             cache_timeout,
             warning_policy,
         } = self;
@@ -110,6 +192,15 @@ impl PartialEq for Config {
             && *user_agent == other.user_agent
             && *cache_timeout == other.cache_timeout
             && *warning_policy == other.warning_policy
+            && http_headers.len() == other.http_headers.len()
+            && exclude.len() == other.exclude.len()
+            && http_headers
+                .iter()
+                .zip(other.http_headers.iter())
+                .all(|(l, r)| {
+                    l.0.as_str() == r.0.as_str()
+                        && l.1 == r.1
+                })
             && exclude
                 .iter()
                 .zip(other.exclude.iter())
@@ -143,6 +234,9 @@ exclude = ["google\\.com"]
 user-agent = "Internet Explorer"
 cache-timeout = 3600
 warning-policy = "error"
+
+[http-headers]
+https = ["Accept: html/text"]
 "#;
 
     #[test]
@@ -153,6 +247,11 @@ warning-policy = "error"
             traverse_parent_directories: true,
             exclude: vec![Regex::new(r"google\.com").unwrap()],
             user_agent: String::from("Internet Explorer"),
+            http_headers: vec![(
+                Regex::new("https").unwrap(), vec![
+                    HttpHeader::try_from("Accept: html/text".to_string()).unwrap()
+                ])
+            ],
             cache_timeout: 3600,
         };
 

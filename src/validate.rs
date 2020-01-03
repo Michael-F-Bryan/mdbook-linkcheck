@@ -263,9 +263,20 @@ fn check_link(
         }
     }
 
+    let mut request = client.get(&url);
+
+    for (pattern, headers) in cfg.http_headers.iter() {
+        if pattern.find(&url).is_some() {
+            log::trace!("Applying extra headers to `{}`", url);
+            for header in headers {
+                request = request.header(&header.name, &header.value);
+            }
+        }
+    }
+
     log::trace!("Sending a GET request to \"{}\"", url);
 
-    match client.get(&url).send() {
+    match request.send() {
         Ok(ref response) if response.status().is_success() => {
             cache.insert(url, CacheEntry::new(SystemTime::now(), true));
             Ok(())
@@ -435,7 +446,7 @@ impl Reason {
     /// out.
     pub fn timed_out(&self) -> bool {
         if let Reason::Client(ref inner) = self {
-            inner.timed_out()
+            inner.is_timeout()
         } else {
             false
         }
