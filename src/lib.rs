@@ -27,11 +27,13 @@ mod cache;
 mod config;
 mod links;
 mod validate;
+mod hashed_regex;
 
 pub use crate::{
     cache::Cache,
     config::{Config, WarningPolicy},
     links::{extract as extract_links, IncompleteLink, Link},
+    hashed_regex::HashedRegex,
     validate::{
         validate, InvalidLink, Reason, UnknownScheme, ValidationOutcome,
     },

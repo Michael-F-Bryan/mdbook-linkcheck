@@ -1,10 +1,9 @@
-use std::{convert::TryFrom, time::Duration};
-use regex::Regex;
+use std::{collections::HashMap, convert::TryFrom, time::Duration};
 use serde_derive::{Deserialize, Serialize};
-
+use crate::hashed_regex::HashedRegex;
 
 /// The configuration options available with this backend.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "kebab-case")]
 pub struct Config {
     /// If a link on the internet is encountered, should we still try to check
@@ -14,8 +13,8 @@ pub struct Config {
     /// Are we allowed to link to files outside of the book's source directory?
     pub traverse_parent_directories: bool,
     /// A list of URL patterns to ignore when checking remote links.
-    #[serde(with = "regex_serde")]
-    pub exclude: Vec<Regex>,
+    #[serde(default)]
+    pub exclude: Vec<HashedRegex>,
     /// The user-agent used whenever any web requests are made.
     #[serde(default = "default_user_agent")]
     pub user_agent: String,
@@ -27,8 +26,8 @@ pub struct Config {
     pub warning_policy: WarningPolicy,
     /// The map of regexes representing sets of web sites and
     /// the list of HTTP headers that must be sent to matching sites.
-    #[serde(with = "headers_serde")]
-    pub http_headers: Vec<(Regex, Vec<HttpHeader>)>,
+    #[serde(default)]
+    pub http_headers: HashMap<HashedRegex, Vec<HttpHeader>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -65,7 +64,7 @@ impl Default for Config {
             traverse_parent_directories: false,
             exclude: Vec::new(),
             user_agent: default_user_agent(),
-            http_headers: Vec::new(),
+            http_headers: HashMap::new(),
             warning_policy: WarningPolicy::Warn,
             cache_timeout: Config::DEFAULT_CACHE_TIMEOUT.as_secs(),
         }
@@ -175,116 +174,6 @@ fn interpolate_env(value: &str) -> Result<String, String> {
     Ok(res)
 }
 
-mod regex_serde {
-    use regex::Regex;
-    use serde::{
-        de::{Deserialize, Deserializer, Error},
-        ser::{SerializeSeq, Serializer},
-    };
-
-    #[allow(clippy::ptr_arg)]
-    pub fn serialize<S>(re: &Vec<Regex>, ser: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut sequence = ser.serialize_seq(Some(re.len()))?;
-
-        for pattern in re {
-            sequence.serialize_element(pattern.as_str())?;
-        }
-        sequence.end()
-    }
-
-    pub fn deserialize<'de, D>(de: D) -> Result<Vec<Regex>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let raw = Vec::<String>::deserialize(de)?;
-        let mut patterns = Vec::new();
-
-        for pat in raw {
-            let re = Regex::new(&pat).map_err(D::Error::custom)?;
-            patterns.push(re);
-        }
-
-        Ok(patterns)
-    }
-}
-
-
-mod headers_serde {
-    use regex::Regex;
-    use std::collections::HashMap;
-    use serde::{
-        de::{Deserialize, Deserializer, Error},
-        ser::{Serialize, Serializer},
-    };
-
-    use super::HttpHeader;
-
-    #[allow(clippy::ptr_arg)]
-    pub fn serialize<S>(re: &Vec<(Regex, Vec<HttpHeader>)>, ser: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut table = HashMap::with_capacity(re.len());
-        for (pattern, headers) in re {
-            table.insert(pattern.as_str(), headers);
-        }
-
-        table.serialize(ser)
-    }
-
-    pub fn deserialize<'de, D>(de: D) -> Result<Vec<(Regex, Vec<HttpHeader>)>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let raw = HashMap::<String, Vec<HttpHeader>>::deserialize(de)?;
-        let mut patterns = Vec::new();
-
-        for (pat, headers) in raw {
-            let re = Regex::new(&pat).map_err(D::Error::custom)?;
-            patterns.push((re, headers));
-        }
-
-        Ok(patterns)
-    }
-}
-
-impl PartialEq for Config {
-    fn eq(&self, other: &Config) -> bool {
-        let Config {
-            follow_web_links,
-            traverse_parent_directories,
-            ref exclude,
-            ref user_agent,
-            ref http_headers,
-            cache_timeout,
-            warning_policy,
-        } = self;
-
-        *follow_web_links == other.follow_web_links
-            && *traverse_parent_directories == other.traverse_parent_directories
-            && exclude.len() == other.exclude.len()
-            && *user_agent == other.user_agent
-            && *cache_timeout == other.cache_timeout
-            && *warning_policy == other.warning_policy
-            && http_headers.len() == other.http_headers.len()
-            && exclude.len() == other.exclude.len()
-            && http_headers
-                .iter()
-                .zip(other.http_headers.iter())
-                .all(|(l, r)| {
-                    l.0.as_str() == r.0.as_str()
-                        && l.1 == r.1
-                })
-            && exclude
-                .iter()
-                .zip(other.exclude.iter())
-                .all(|(l, r)| l.as_str() == r.as_str())
-    }
-}
-
 /// How should warnings be treated?
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -304,7 +193,7 @@ impl Default for WarningPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::convert::TryInto;
+    use std::{convert::TryInto, iter::FromIterator};
     use toml;
 
     const CONFIG: &str = r#"follow-web-links = true
@@ -326,14 +215,17 @@ https = ["Accept: html/text", "Authorization: Basic $TOKEN"]
             follow_web_links: true,
             warning_policy: WarningPolicy::Error,
             traverse_parent_directories: true,
-            exclude: vec![Regex::new(r"google\.com").unwrap()],
+            exclude: vec![HashedRegex::new(r"google\.com").unwrap()],
             user_agent: String::from("Internet Explorer"),
-            http_headers: vec![(
-                Regex::new("https").unwrap(), vec![
-                    "Accept: html/text".try_into().unwrap(),
-                    "Authorization: Basic $TOKEN".try_into().unwrap()
-                ])
-            ],
+            http_headers: HashMap::from_iter(vec![
+                (
+                    HashedRegex::new("https").unwrap(),
+                    vec![
+                        "Accept: html/text".try_into().unwrap(),
+                        "Authorization: Basic $TOKEN".try_into().unwrap()
+                    ]
+                )
+            ]),
             cache_timeout: 3600,
         };
 
