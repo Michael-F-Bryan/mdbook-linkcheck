@@ -269,7 +269,8 @@ fn check_link(
         if pattern.find(&url).is_some() {
             log::trace!("Applying extra headers to `{}`", url);
             for header in headers {
-                request = request.header(&header.name, &header.value);
+                log::trace!("  Applying `{}`", header.interpolated_value);
+                request = request.header(&header.name, &header.interpolated_value);
             }
         }
     }

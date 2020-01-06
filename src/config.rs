@@ -1,7 +1,6 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, time::Duration};
 use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
-use std::time::Duration;
 
 
 /// The configuration options available with this backend.
@@ -36,7 +35,12 @@ pub struct Config {
 #[serde(try_from = "String", into = "String")]
 pub struct HttpHeader {
     pub name: String,
-    pub value: String
+    pub value: String,
+
+    // This is a separate field because interpolated env vars
+    // may contain some secrets that should not be revealed
+    // in logs, config, error messages and the like.
+    pub(crate) interpolated_value: String,
 }
 
 impl Config {
@@ -68,16 +72,16 @@ impl Default for Config {
     }
 }
 
-impl TryFrom<String> for HttpHeader {
+impl TryFrom<&'_ str> for HttpHeader {
     type Error = String;
 
-    fn try_from(s: String) -> Result<Self, String> {
+    fn try_from(s: &'_ str) -> Result<Self, String> {
         match s.find(": ") {
             Some(idx) => {
                 let name = s[..idx].to_string();
                 let value = s[idx + 2..].to_string();
-
-                Ok(HttpHeader { name, value })
+                let interpolated_value = interpolate_env(&value)?;
+                Ok(HttpHeader { name, value, interpolated_value })
             }
 
             None => {
@@ -87,9 +91,17 @@ impl TryFrom<String> for HttpHeader {
     }
 }
 
+impl TryFrom<String> for HttpHeader {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, String> {
+        HttpHeader::try_from(s.as_str())
+    }
+}
+
 impl Into<String> for HttpHeader {
     fn into(self) -> String {
-        let HttpHeader { name, value } = self;
+        let HttpHeader { name, value, .. } = self;
         format!("{}: {}", name, value)
     }
 }
@@ -97,6 +109,71 @@ impl Into<String> for HttpHeader {
 
 fn default_cache_timeout() -> u64 { Config::DEFAULT_CACHE_TIMEOUT.as_secs() }
 fn default_user_agent() -> String { Config::DEFAULT_USER_AGENT.to_string() }
+
+fn interpolate_env(value: &str) -> Result<String, String> {
+    use std::{str::CharIndices, iter::Peekable};
+
+    fn is_ident(ch: char) -> bool {
+        ch.is_ascii_alphanumeric() || ch == '_'
+    }
+
+    fn ident_end(start: usize, iter: &mut Peekable<CharIndices>) -> usize {
+        let mut end = start;
+        while let Some(&(i, ch)) = iter.peek() {
+            if !is_ident(ch) {
+                return i;
+            }
+            end = i + ch.len_utf8();
+            iter.next();
+        }
+
+        end
+    }
+
+    let mut res = String::with_capacity(value.len());
+    let mut backslash = false;
+    let mut iter = value.char_indices().peekable();
+
+    while let Some((i, ch)) = iter.next() {
+        if backslash {
+            match ch {
+                '$' | '\\' => res.push(ch),
+                _ => {
+                    res.push('\\');
+                    res.push(ch);
+                }
+            }
+
+            backslash = false;
+        } else {
+            match ch {
+                '\\' => backslash = true,
+                '$' => {
+                    iter.next();
+                    let start = i + 1;
+                    let end = ident_end(start, &mut iter);
+                    let name = &value[start..end];
+
+                    match std::env::var(name) {
+                        Ok(env) => res.push_str(&env),
+                        Err(e) => return Err(format!(
+                            "Failed to retrieve `{}` env var: {}", name, e
+                        )),
+                    }
+                }
+
+                _ => res.push(ch),
+            }
+        }
+    }
+
+    // trailing backslash
+    if backslash {
+        res.push('\\');
+    }
+
+    Ok(res)
+}
 
 mod regex_serde {
     use regex::Regex;
@@ -227,7 +304,9 @@ impl Default for WarningPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::convert::TryInto;
     use toml;
+
     const CONFIG: &str = r#"follow-web-links = true
 traverse-parent-directories = true
 exclude = ["google\\.com"]
@@ -236,11 +315,13 @@ cache-timeout = 3600
 warning-policy = "error"
 
 [http-headers]
-https = ["Accept: html/text"]
+https = ["Accept: html/text", "Authorization: Basic $TOKEN"]
 "#;
 
     #[test]
     fn deserialize_a_config() {
+        std::env::set_var("TOKEN", "QWxhZGRpbjpPcGVuU2VzYW1l");
+
         let should_be = Config {
             follow_web_links: true,
             warning_policy: WarningPolicy::Error,
@@ -249,7 +330,8 @@ https = ["Accept: html/text"]
             user_agent: String::from("Internet Explorer"),
             http_headers: vec![(
                 Regex::new("https").unwrap(), vec![
-                    HttpHeader::try_from("Accept: html/text".to_string()).unwrap()
+                    "Accept: html/text".try_into().unwrap(),
+                    "Authorization: Basic $TOKEN".try_into().unwrap()
                 ])
             ],
             cache_timeout: 3600,
@@ -262,9 +344,26 @@ https = ["Accept: html/text"]
 
     #[test]
     fn round_trip_config() {
+        // A check that a value of an env var is not leaked in the deserialization
+        std::env::set_var("TOKEN", "QWxhZGRpbjpPcGVuU2VzYW1l");
+
         let deserialized: Config = toml::from_str(CONFIG).unwrap();
         let reserialized = toml::to_string(&deserialized).unwrap();
 
         assert_eq!(reserialized, CONFIG);
+    }
+
+    #[test]
+    fn interpolation() {
+        std::env::set_var("TOKEN", "QWxhZGRpbjpPcGVuU2VzYW1l");
+        let should_be = HttpHeader {
+            name: "Authorization".into(),
+            value: "Basic $TOKEN".into(),
+            interpolated_value: "Basic QWxhZGRpbjpPcGVuU2VzYW1l".into()
+        };
+
+        let got = HttpHeader::try_from("Authorization: Basic $TOKEN").unwrap();
+
+        assert_eq!(got, should_be);
     }
 }

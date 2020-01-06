@@ -6,6 +6,8 @@ use failure::Error;
 use mdbook::{renderer::RenderContext, MDBook};
 use mdbook_linkcheck::{Cache, Config, ValidationOutcome};
 use std::path::{Path, PathBuf};
+use regex::Regex;
+use std::convert::TryInto;
 
 fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
 
@@ -22,6 +24,7 @@ fn check_all_links_in_a_valid_book() {
         "/chapter_1.md",
         "./sibling.md",
         "https://www.google.com/",
+        "https://crates.io/crates/mdbook-linkcheck"
     ];
 
     let output = run_link_checker(&root).unwrap();
@@ -90,6 +93,14 @@ fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
         follow_web_links: true,
         traverse_parent_directories: false,
         exclude: vec![r"forbidden\.com".parse().unwrap()],
+        http_headers: vec![
+            (
+                Regex::new(r"crates\.io").unwrap(),
+                vec![
+                    "Accept: text/html".try_into().unwrap()
+                ]
+            )
+        ],
         ..Default::default()
     };
     md.config.set("output.linkcheck", &cfg).unwrap();

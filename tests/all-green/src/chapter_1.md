@@ -9,4 +9,6 @@
 
 [And also external web pages](https://www.google.com/)
 
+[Some web links require additional HTTP headers](https://crates.io/crates/mdbook-linkcheck)
+
 [You can also blacklist URLs by regex](https://nonexistent.forbidden.com/)
