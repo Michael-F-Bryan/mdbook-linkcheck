@@ -109,4 +109,52 @@ warning-policy = "warn"
 "website\.com" = ["Authorization: Basic $TOKEN"]
 ```
 
+## Continuous Integration
+
+Incorporating `mdbook-linkcheck` into your CI system should be straightforward
+if you are already [using `mdbook` to generate documentation][mdbook-ci].
+
+For those using GitLab's built-in CI:
+
+```yaml
+book:
+  stage: build
+  image : rust:latest
+  variables:
+    # makes sure the `~/.cargo` directory gets cached too
+    CARGO_HOME: $CI_PROJECT_DIR/_cargo
+  before_script:
+    - rustc --version --verbose && cargo --version --verbose
+    - export PATH=$CARGO_HOME/bin:$PATH
+    # Install mdbook and mdbook-linkcheck without optimisations, if not
+    # already installed
+    - command -v mdbook >/dev/null 2>&1 || cargo install --debug mdbook
+    - command -v mdbook-linkcheck >/dev/null 2>&1 || cargo install --debug mdbook-linkcheck
+  script:
+    - mdbook build
+  artifacts:
+    paths:
+      - book
+
+pages:
+  image: busybox:latest
+  stage: deploy
+  dependencies:
+    - book
+  script:
+    - mkdir -p public
+    - cp -r book public
+  artifacts:
+    paths:
+    - public
+  only:
+    - master
+```
+
+[@danieltrautmann][danieltrautmann] has also created [a docker image][docker]
+that comes with `mdbook` and `mdbook-linkcheck` pre-installed.
+
 [releases]: https://github.com/Michael-F-Bryan/mdbook-linkcheck/releases
+[mdbook-ci]: https://rust-lang.github.io/mdBook/continuous-integration.html
+[danieltrautmann]: https://github.com/danieltrautmann
+[docker]: https://gitlab.com/danieltrautmann/docker-mdbook/container_registry
