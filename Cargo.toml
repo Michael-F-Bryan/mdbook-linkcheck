@@ -29,7 +29,7 @@ regex = "1.0"
 codespan = "0.5"
 codespan-reporting = "0.5"
 http = "0.1.17"
-reqwest = "0.9.19"
+reqwest = { version = "0.9.19", default-features = false, features = ["rustls-tls"] }
 rayon = "1.0"
 either = "1.5"
 percent-encoding = "2.1.0"
