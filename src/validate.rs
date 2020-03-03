@@ -8,7 +8,7 @@ use either::Either;
 use failure::Error;
 use http::HeaderMap;
 use rayon::prelude::*;
-use reqwest::{Client, StatusCode};
+use reqwest::{blocking::Client, StatusCode};
 use std::{
     ffi::OsStr,
     fmt::{self, Display, Formatter},
@@ -236,7 +236,6 @@ fn create_client(cfg: &Config) -> Result<Client, Error> {
     headers.insert(reqwest::header::USER_AGENT, cfg.user_agent.parse()?);
 
     let client = Client::builder()
-        .use_sys_proxy()
         .default_headers(headers)
         .build()?;
 
