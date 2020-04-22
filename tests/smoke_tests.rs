@@ -26,6 +26,7 @@ fn check_all_links_in_a_valid_book() {
         "../chapter_1.md",
         "/chapter_1.md",
         "./sibling.md",
+        "sibling.md",
         "https://www.google.com/",
         "https://crates.io/crates/mdbook-linkcheck",
     ];

@@ -5,6 +5,7 @@ use std::{
     cell::RefCell,
     fmt::Debug,
     path::{Component, Path, PathBuf},
+    str::FromStr,
 };
 
 /// A single link, and where it was found in the parent document.
@@ -23,22 +24,13 @@ impl Link {
         uri: &str,
         range: std::ops::Range<usize>,
         file: FileId,
-    ) -> Result<Link, http::Error> {
+    ) -> Result<Link, failure::Error> {
         let start = ByteIndex(range.start as u32);
         let end = ByteIndex(range.end as u32);
         let span = Span::new(start, end);
 
-        // it might be a valid URI already
-        if let Ok(uri) = uri.parse() {
-            return Ok(Link { uri, span, file });
-        }
-
-        // otherwise, treat it like a relative path with no authority or scheme
-        let mut parts = Parts::default();
-        parts.path_and_query = Some(uri.parse()?);
-        let uri = Uri::from_parts(parts)?;
-
-        Ok(Link { uri, span, file })
+        let uri = parse_uri(uri)?;
+        Ok(Link { uri, file, span })
     }
 
     pub(crate) fn as_filesystem_path(
@@ -72,6 +64,25 @@ impl Link {
             concat_paths(parent_dir, &path)
         }
     }
+}
+
+fn parse_uri(uri: &str) -> Result<Uri, failure::Error> {
+    // it might be a valid URI already
+    if let Ok(uri) = Uri::from_str(uri) {
+        // A link like "some_image.png" may accidentally be interpreted as a
+        // link to the "some_image.png" website's home page so we expect web
+        // links to have an explicit scheme
+        if uri.scheme().is_some() {
+            return Ok(uri);
+        }
+    }
+
+    // otherwise, treat it like a relative path with no authority or scheme
+    let mut parts = Parts::default();
+    parts.path_and_query = Some(uri.parse()?);
+    let uri = Uri::from_parts(parts)?;
+
+    Ok(uri)
 }
 
 /// Concatenate two paths, skipping any prefix components (e.g. `C:` or `/`) in
@@ -188,6 +199,13 @@ impl<'a> Iterator for Links<'a> {
                         self.file,
                     );
 
+                    if dest.starts_with("mailto:") {
+                        // mailto URIs aren't supported by the http crate and
+                        // we can't really check them anyway, so just ignore it
+                        log::debug!("Skipping a mailto link: \"{}\"", dest);
+                        continue;
+                    }
+
                     match Link::parse(&dest, range.clone(), self.file) {
                         Ok(link) => return Some(link),
                         Err(e) => {
@@ -244,5 +262,42 @@ mod tests {
         let got = decoded_path(uri);
 
         assert_eq!(got, should_be);
+    }
+
+    #[test]
+    fn parse_a_normal_web_link() {
+        let src = "https://google.com/whatever.html#fragment";
+        let should_be = Uri::builder()
+            .scheme("https")
+            .authority("google.com")
+            .path_and_query("/whatever.html#fragment")
+            .build()
+            .unwrap();
+
+        let got = parse_uri(src).unwrap();
+
+        assert_eq!(got, should_be);
+    }
+
+    #[test]
+    fn parse_a_file_that_kinda_looks_like_a_web_link() {
+        let src = "some_image.png";
+
+        let got = parse_uri(src).unwrap();
+
+        assert!(got.scheme().is_none());
+        assert!(got.authority().is_none());
+        assert_eq!(got.path_and_query().unwrap(), src);
+    }
+
+    #[test]
+    fn parse_an_obvious_filesystem_link() {
+        let src = "../some_image.png";
+
+        let got = parse_uri(src).unwrap();
+
+        assert!(got.scheme().is_none());
+        assert!(got.authority().is_none());
+        assert_eq!(got.path_and_query().unwrap(), src);
     }
 }

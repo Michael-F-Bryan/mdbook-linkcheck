@@ -119,6 +119,10 @@ fn validate_local_links(
     for link in links {
         if link.uri.path() == "" {
             // it's a link within the same document
+            log::trace!(
+                "Skipping \"{}\" because it's in the same document",
+                link.uri
+            );
             continue;
         }
 
