@@ -300,4 +300,15 @@ mod tests {
         assert!(got.authority().is_none());
         assert_eq!(got.path_and_query().unwrap(), src);
     }
+
+    #[test]
+    fn mailto_links_are_ignored() {
+        let src = "[This](mailto:me@example.com) is a mailto link";
+        let mut files = Files::new();
+        let id = files.add("whatever", src.to_string());
+
+        let got: Vec<Link> = Links::new(id, &files, &|_, _| None).collect();
+
+        assert!(got.is_empty());
+    }
 }
