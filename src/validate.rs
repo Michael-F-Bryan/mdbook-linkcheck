@@ -2,7 +2,7 @@ use crate::{
     cache::{Cache, CacheEntry},
     Config, IncompleteLink, Link, WarningPolicy,
 };
-use codespan::{Files, Span};
+use codespan::{FileId, Files, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label, Severity};
 use either::Either;
 use failure::Error;
@@ -25,7 +25,7 @@ pub fn validate(
     cfg: &Config,
     src_dir: &Path,
     cache: &Cache,
-    files: &Files,
+    files: &Files<String>,
     incomplete_links: Vec<IncompleteLink>,
 ) -> Result<ValidationOutcome, Error> {
     let mut outcome = ValidationOutcome {
@@ -64,7 +64,7 @@ fn remove_skipped_links(
     links: &mut Vec<Link>,
     outcome: &mut ValidationOutcome,
     cfg: &Config,
-    files: &Files,
+    files: &Files<String>,
 ) {
     links.retain(|link| {
         let uri = link.uri.to_string();
@@ -76,7 +76,7 @@ fn remove_skipped_links(
             log::debug!(
                 "Skipping \"{}\" in {}, line {}",
                 uri,
-                name,
+                name.to_string_lossy(),
                 location.line,
             );
             outcome.ignored.push(link.clone());
@@ -109,7 +109,7 @@ fn validate_local_links(
     traverse_parent_directories: bool,
     root_dir: &Path,
     outcome: &mut ValidationOutcome,
-    files: &Files,
+    files: &Files<String>,
 ) {
     debug_assert!(
         root_dir.is_absolute(),
@@ -235,9 +235,7 @@ fn create_client(cfg: &Config) -> Result<Client, Error> {
     let mut headers = HeaderMap::new();
     headers.insert(reqwest::header::USER_AGENT, cfg.user_agent.parse()?);
 
-    let client = Client::builder()
-        .default_headers(headers)
-        .build()?;
+    let client = Client::builder().default_headers(headers).build()?;
 
     Ok(client)
 }
@@ -269,7 +267,8 @@ fn check_link(
             log::trace!("Applying extra headers to `{}`", url);
             for header in headers {
                 log::trace!("  Applying `{}`", header.interpolated_value);
-                request = request.header(&header.name, &header.interpolated_value);
+                request =
+                    request.header(&header.name, &header.interpolated_value);
             }
         }
     }
@@ -322,9 +321,9 @@ impl ValidationOutcome {
     /// [`ValidationOutcome`].
     pub fn generate_diagnostics(
         &self,
-        files: &Files,
+        files: &Files<String>,
         warning_policy: WarningPolicy,
-    ) -> Vec<Diagnostic> {
+    ) -> Vec<Diagnostic<FileId>> {
         let mut diags = Vec::new();
 
         self.add_invalid_link_diagnostics(&mut diags);
@@ -349,37 +348,37 @@ impl ValidationOutcome {
     fn add_incomplete_link_diagnostics(
         &self,
         severity: Severity,
-        diags: &mut Vec<Diagnostic>,
-        files: &Files,
+        diags: &mut Vec<Diagnostic<FileId>>,
+        files: &Files<String>,
     ) {
         for incomplete in &self.incomplete_links {
             let IncompleteLink { ref text, file } = incomplete;
             let span = resolve_incomplete_link_span(incomplete, files);
             let msg =
                 format!("Did you forget to define a URL for `{0}`?", text);
-            let label = Label::new(*file, span, msg);
+            let label = Label::primary(*file, span).with_message(msg);
             let note = format!(
                 "hint: declare the link's URL. For example: `[{}]: http://example.com/`",
                 text
             );
-            let diag =
-                Diagnostic::new(severity, "Potential incomplete link", label)
-                    .with_notes(vec![note]);
+            let diag = Diagnostic::new(severity)
+                .with_message("Potential incomplete link")
+                .with_labels(vec![label])
+                .with_notes(vec![note]);
             diags.push(diag)
         }
     }
 
-    fn add_invalid_link_diagnostics(&self, diags: &mut Vec<Diagnostic>) {
+    fn add_invalid_link_diagnostics(
+        &self,
+        diags: &mut Vec<Diagnostic<FileId>>,
+    ) {
         for broken_link in &self.invalid_links {
             let link = &broken_link.link;
-            let diag = Diagnostic::new_error(
-                broken_link.to_string(),
-                Label::new(
-                    link.file,
-                    link.span,
-                    broken_link.reason.to_string(),
-                ),
-            );
+            let diag = Diagnostic::error()
+                .with_message(broken_link.to_string())
+                .with_labels(vec![Label::primary(link.file, link.span)
+                    .with_message(broken_link.reason.to_string())]);
             diags.push(diag);
         }
     }
@@ -391,7 +390,7 @@ impl ValidationOutcome {
 /// have been defined.
 fn resolve_incomplete_link_span(
     incomplete: &IncompleteLink,
-    files: &Files,
+    files: &Files<String>,
 ) -> Span {
     let needle = format!("[{}]", incomplete.text);
     let src = files.source(incomplete.file);

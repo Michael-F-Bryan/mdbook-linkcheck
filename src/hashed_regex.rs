@@ -1,9 +1,9 @@
 use regex::Regex;
-use serde::{Serialize, Deserialize, Deserializer, de::Error};
+use serde::{de::Error, Deserialize, Deserializer, Serialize};
 use std::{
     hash::{Hash, Hasher},
     ops::Deref,
-    str::FromStr
+    str::FromStr,
 };
 
 /// A wrapper around [`regex::Regex`] which implements **string repr based**
@@ -16,8 +16,8 @@ use std::{
 /// **All the implementations are string based**. It means that the said
 /// implementations simply delegate to the underlying implementations for `str`.
 ///
-/// For example, while `[0-9]*` and `\d*` are the same regex, they will be considered
-/// different. In particular, the following is true:
+/// For example, while `[0-9]*` and `\d*` are the same regex, they will be
+/// considered different. In particular, the following is true:
 /// ```
 /// use mdbook_linkcheck::HashedRegex;
 ///
@@ -34,7 +34,7 @@ pub struct HashedRegex {
 
     /// Compiled regexp.
     #[serde(skip_serializing)]
-    pub re: Regex
+    pub re: Regex,
 }
 
 impl HashedRegex {
@@ -50,7 +50,7 @@ impl HashedRegex {
 impl<'de> Deserialize<'de> for HashedRegex {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: Deserializer<'de>
+        D: Deserializer<'de>,
     {
         let string = String::deserialize(deserializer)?;
         let re = Regex::new(&string).map_err(D::Error::custom)?;
@@ -60,15 +60,11 @@ impl<'de> Deserialize<'de> for HashedRegex {
 }
 
 impl Hash for HashedRegex {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.string.hash(state);
-    }
+    fn hash<H: Hasher>(&self, state: &mut H) { self.string.hash(state); }
 }
 
 impl PartialEq for HashedRegex {
-    fn eq(&self, other: &Self) -> bool {
-        self.string == other.string
-    }
+    fn eq(&self, other: &Self) -> bool { self.string == other.string }
 }
 
 impl Eq for HashedRegex {}
@@ -76,15 +72,11 @@ impl Eq for HashedRegex {}
 impl FromStr for HashedRegex {
     type Err = regex::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        HashedRegex::new(s)
-    }
+    fn from_str(s: &str) -> Result<Self, Self::Err> { HashedRegex::new(s) }
 }
 
 impl Deref for HashedRegex {
     type Target = regex::Regex;
 
-    fn deref(&self) -> &regex::Regex {
-        &self.re
-    }
+    fn deref(&self) -> &regex::Regex { &self.re }
 }

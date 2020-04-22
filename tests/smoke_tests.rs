@@ -4,12 +4,12 @@ extern crate pretty_assertions;
 use codespan::Files;
 use failure::Error;
 use mdbook::{renderer::RenderContext, MDBook};
-use mdbook_linkcheck::{HashedRegex, Cache, Config, ValidationOutcome};
+use mdbook_linkcheck::{Cache, Config, HashedRegex, ValidationOutcome};
 use std::{
-    path::{Path, PathBuf},
-    convert::TryInto,
     collections::HashMap,
+    convert::TryInto,
     iter::FromIterator,
+    path::{Path, PathBuf},
 };
 
 fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
@@ -27,7 +27,7 @@ fn check_all_links_in_a_valid_book() {
         "/chapter_1.md",
         "./sibling.md",
         "https://www.google.com/",
-        "https://crates.io/crates/mdbook-linkcheck"
+        "https://crates.io/crates/mdbook-linkcheck",
     ];
 
     let output = run_link_checker(&root).unwrap();
@@ -98,14 +98,10 @@ fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
         follow_web_links: true,
         traverse_parent_directories: false,
         exclude: vec![r"forbidden\.com".parse().unwrap()],
-        http_headers: HashMap::from_iter(vec![
-            (
-                HashedRegex::new(r"crates\.io").unwrap(),
-                vec![
-                    "Accept: text/html".try_into().unwrap()
-                ]
-            )
-        ]),
+        http_headers: HashMap::from_iter(vec![(
+            HashedRegex::new(r"crates\.io").unwrap(),
+            vec!["Accept: text/html".try_into().unwrap()],
+        )]),
         ..Default::default()
     };
     md.config.set("output.linkcheck", &cfg).unwrap();

@@ -44,7 +44,7 @@ impl Link {
     pub(crate) fn as_filesystem_path(
         &self,
         root_dir: &Path,
-        files: &Files,
+        files: &Files<String>,
     ) -> PathBuf {
         debug_assert!(
             self.uri.scheme_str().is_none()
@@ -102,7 +102,7 @@ fn decoded_path(percent_encoded_path: &str) -> PathBuf {
 /// found.
 pub fn extract<I>(
     target_files: I,
-    files: &Files,
+    files: &Files<String>,
 ) -> (Vec<Link>, Vec<IncompleteLink>)
 where
     I: IntoIterator<Item = FileId>,
@@ -112,7 +112,7 @@ where
 
     for file_id in target_files {
         let cb = on_broken_links(file_id, &broken_links);
-        log::debug!("Scanning {}", files.name(file_id));
+        log::debug!("Scanning {}", files.name(file_id).to_string_lossy());
         links.extend(Links::new(file_id, files, &cb));
     }
 
@@ -149,13 +149,13 @@ pub struct IncompleteLink {
 struct Links<'a> {
     events: OffsetIter<'a>,
     file: FileId,
-    files: &'a Files,
+    files: &'a Files<String>,
 }
 
 impl<'a> Links<'a> {
     fn new(
         file: FileId,
-        files: &'a Files,
+        files: &'a Files<String>,
         cb: &'a dyn Fn(&str, &str) -> Option<(String, String)>,
     ) -> Links<'a> {
         let src = files.source(file);
@@ -218,7 +218,7 @@ mod tests {
         let src = "This is a link to [nowhere](http://doesnt.exist/)";
         let link: Uri = "http://doesnt.exist/".parse().unwrap();
         let mut files = Files::new();
-        let id = files.add("whatever", src);
+        let id = files.add("whatever", src.to_string());
 
         let got: Vec<Link> = Links::new(id, &files, &|_, _| None).collect();
 

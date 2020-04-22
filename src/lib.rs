@@ -25,15 +25,15 @@ pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
 mod cache;
 mod config;
+mod hashed_regex;
 mod links;
 mod validate;
-mod hashed_regex;
 
 pub use crate::{
     cache::Cache,
     config::{Config, WarningPolicy},
-    links::{extract as extract_links, IncompleteLink, Link},
     hashed_regex::HashedRegex,
+    links::{extract as extract_links, IncompleteLink, Link},
     validate::{
         validate, InvalidLink, Reason, UnknownScheme, ValidationOutcome,
     },
@@ -120,13 +120,17 @@ pub fn version_check(version: &str) -> Result<(), Error> {
 }
 
 /// A helper for reading the chapters of a [`Book`] into memory.
-pub fn load_files_into_memory(book: &Book, dest: &mut Files) -> Vec<FileId> {
+pub fn load_files_into_memory(
+    book: &Book,
+    dest: &mut Files<String>,
+) -> Vec<FileId> {
     let mut ids = Vec::new();
 
     for item in book.iter() {
         match item {
             BookItem::Chapter(ref ch) => {
-                let id = dest.add(ch.path.display().to_string(), &ch.content);
+                let id =
+                    dest.add(ch.path.display().to_string(), ch.content.clone());
                 ids.push(id);
             },
             BookItem::Separator => {},
@@ -137,8 +141,8 @@ pub fn load_files_into_memory(book: &Book, dest: &mut Files) -> Vec<FileId> {
 }
 
 fn report_errors(
-    files: &Files,
-    diags: &[Diagnostic],
+    files: &Files<String>,
+    diags: &[Diagnostic<FileId>],
     colour: ColorChoice,
 ) -> Result<(), Error> {
     let mut writer = StandardStream::stderr(colour);
@@ -155,7 +159,7 @@ fn check_links(
     ctx: &RenderContext,
     cache: &Cache,
     cfg: &Config,
-) -> Result<(Files, ValidationOutcome), Error> {
+) -> Result<(Files<String>, ValidationOutcome), Error> {
     log::info!("Scanning book for links");
     let mut files = Files::new();
     let file_ids = crate::load_files_into_memory(&ctx.book, &mut files);

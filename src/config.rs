@@ -1,6 +1,6 @@
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
-use serde_derive::{Deserialize, Serialize};
 use crate::hashed_regex::HashedRegex;
+use serde_derive::{Deserialize, Serialize};
+use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 /// The configuration options available with this backend.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -80,12 +80,17 @@ impl TryFrom<&'_ str> for HttpHeader {
                 let name = s[..idx].to_string();
                 let value = s[idx + 2..].to_string();
                 let interpolated_value = interpolate_env(&value)?;
-                Ok(HttpHeader { name, value, interpolated_value })
-            }
+                Ok(HttpHeader {
+                    name,
+                    value,
+                    interpolated_value,
+                })
+            },
 
-            None => {
-                Err(format!("The `{}` HTTP header must contain `: ` but it doesn't", s))
-            }
+            None => Err(format!(
+                "The `{}` HTTP header must contain `: ` but it doesn't",
+                s
+            )),
         }
     }
 }
@@ -105,16 +110,13 @@ impl Into<String> for HttpHeader {
     }
 }
 
-
 fn default_cache_timeout() -> u64 { Config::DEFAULT_CACHE_TIMEOUT.as_secs() }
 fn default_user_agent() -> String { Config::DEFAULT_USER_AGENT.to_string() }
 
 fn interpolate_env(value: &str) -> Result<String, String> {
-    use std::{str::CharIndices, iter::Peekable};
+    use std::{iter::Peekable, str::CharIndices};
 
-    fn is_ident(ch: char) -> bool {
-        ch.is_ascii_alphanumeric() || ch == '_'
-    }
+    fn is_ident(ch: char) -> bool { ch.is_ascii_alphanumeric() || ch == '_' }
 
     fn ident_end(start: usize, iter: &mut Peekable<CharIndices>) -> usize {
         let mut end = start;
@@ -140,7 +142,7 @@ fn interpolate_env(value: &str) -> Result<String, String> {
                 _ => {
                     res.push('\\');
                     res.push(ch);
-                }
+                },
             }
 
             backslash = false;
@@ -155,11 +157,14 @@ fn interpolate_env(value: &str) -> Result<String, String> {
 
                     match std::env::var(name) {
                         Ok(env) => res.push_str(&env),
-                        Err(e) => return Err(format!(
-                            "Failed to retrieve `{}` env var: {}", name, e
-                        )),
+                        Err(e) => {
+                            return Err(format!(
+                                "Failed to retrieve `{}` env var: {}",
+                                name, e
+                            ))
+                        },
                     }
-                }
+                },
 
                 _ => res.push(ch),
             }
@@ -217,15 +222,13 @@ https = ["Accept: html/text", "Authorization: Basic $TOKEN"]
             traverse_parent_directories: true,
             exclude: vec![HashedRegex::new(r"google\.com").unwrap()],
             user_agent: String::from("Internet Explorer"),
-            http_headers: HashMap::from_iter(vec![
-                (
-                    HashedRegex::new("https").unwrap(),
-                    vec![
-                        "Accept: html/text".try_into().unwrap(),
-                        "Authorization: Basic $TOKEN".try_into().unwrap()
-                    ]
-                )
-            ]),
+            http_headers: HashMap::from_iter(vec![(
+                HashedRegex::new("https").unwrap(),
+                vec![
+                    "Accept: html/text".try_into().unwrap(),
+                    "Authorization: Basic $TOKEN".try_into().unwrap(),
+                ],
+            )]),
             cache_timeout: 3600,
         };
 
@@ -236,7 +239,8 @@ https = ["Accept: html/text", "Authorization: Basic $TOKEN"]
 
     #[test]
     fn round_trip_config() {
-        // A check that a value of an env var is not leaked in the deserialization
+        // A check that a value of an env var is not leaked in the
+        // deserialization
         std::env::set_var("TOKEN", "QWxhZGRpbjpPcGVuU2VzYW1l");
 
         let deserialized: Config = toml::from_str(CONFIG).unwrap();
@@ -251,7 +255,7 @@ https = ["Accept: html/text", "Authorization: Basic $TOKEN"]
         let should_be = HttpHeader {
             name: "Authorization".into(),
             value: "Basic $TOKEN".into(),
-            interpolated_value: "Basic QWxhZGRpbjpPcGVuU2VzYW1l".into()
+            interpolated_value: "Basic QWxhZGRpbjpPcGVuU2VzYW1l".into(),
         };
 
         let got = HttpHeader::try_from("Authorization: Basic $TOKEN").unwrap();
