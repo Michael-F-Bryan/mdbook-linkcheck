@@ -30,8 +30,8 @@ codespan-reporting = "0.9"
 http = "0.2"
 reqwest = { version = "0.10", default-features = false, features = ["blocking", "rustls-tls"]}
 dunce = "1.0.0"
-# linkcheck = "0.1.0"
-linkcheck = { git = "https://github.com/Michael-F-Bryan/linkcheck" }
+linkcheck = "0.2.0"
+# linkcheck = { git = "https://github.com/Michael-F-Bryan/linkcheck" }
 tokio = "0.2.20"
 anyhow = "1.0.28"
 

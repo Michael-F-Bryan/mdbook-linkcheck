@@ -23,6 +23,10 @@ fn lc_validate(
     let options = Options::default()
         .with_root_directory(src_dir)
         .expect("The source directory doesn't exist?")
+        .set_alternate_extensions(vec![(
+            "html".to_string(),
+            vec!["md".to_string()],
+        )])
         .set_links_may_traverse_the_root_directory(
             cfg.traverse_parent_directories,
         );
