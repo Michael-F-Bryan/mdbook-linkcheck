@@ -23,7 +23,6 @@ extern crate pretty_assertions;
 /// A semver range specifying which versions of `mdbook` this crate supports.
 pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
-mod cache;
 mod config;
 mod context;
 mod hashed_regex;
@@ -31,11 +30,10 @@ mod links;
 mod validate;
 
 pub use crate::{
-    cache::Cache,
     config::{Config, WarningPolicy},
     context::Context,
     hashed_regex::HashedRegex,
-    links::{extract as extract_links, IncompleteLink, Link},
+    links::{extract as extract_links, IncompleteLink},
     validate::{validate, ValidationOutcome},
 };
 
@@ -45,6 +43,7 @@ use codespan_reporting::{
     term::termcolor::{ColorChoice, StandardStream},
 };
 use failure::{Error, ResultExt};
+use linkcheck::validation::Cache;
 use mdbook::{
     book::{Book, BookItem},
     renderer::RenderContext,
@@ -58,7 +57,7 @@ pub fn run(
     colour: ColorChoice,
     ctx: &RenderContext,
 ) -> Result<(), Error> {
-    let cache = load_cache(cache_file);
+    let mut cache = load_cache(cache_file);
 
     log::info!("Started the link checker");
 
@@ -71,12 +70,7 @@ pub fn run(
         }
     }
 
-    let (files, outcome) = check_links(&ctx, &cache, &cfg).compat()?;
-    log::debug!(
-        "cache hits: {}, cache misses: {}",
-        cache.cache_hits(),
-        cache.cache_misses()
-    );
+    let (files, outcome) = check_links(&ctx, &mut cache, &cfg).compat()?;
     let diags = outcome.generate_diagnostics(&files, cfg.warning_policy);
     report_errors(&files, &diags, colour).compat()?;
 
@@ -157,7 +151,7 @@ fn report_errors(
 
 fn check_links(
     ctx: &RenderContext,
-    cache: &Cache,
+    cache: &mut Cache,
     cfg: &Config,
 ) -> Result<(Files<String>, ValidationOutcome), Error> {
     log::info!("Scanning book for links");
@@ -171,8 +165,14 @@ fn check_links(
     );
     let src = dunce::canonicalize(ctx.source_dir())
         .context("Unable to resolve the source directory")?;
-    let outcome =
-        crate::validate(&links, &cfg, &src, &cache, &files, incomplete_links)?;
+    let outcome = crate::validate(
+        &links,
+        &cfg,
+        &src,
+        &mut cache,
+        &files,
+        incomplete_links,
+    )?;
 
     Ok((files, outcome))
 }

@@ -1,8 +1,11 @@
-use crate::{cache::Cache, Config, Context, IncompleteLink, WarningPolicy};
+use crate::{Config, Context, IncompleteLink, WarningPolicy};
 use codespan::{FileId, Files, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label, Severity};
 use failure::Error;
-use linkcheck::{validation::InvalidLink, Link};
+use linkcheck::{
+    validation::{Cache, InvalidLink, Options, Outcomes},
+    Link,
+};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -10,30 +13,33 @@ use std::{
 };
 use tokio::runtime::Runtime;
 
-#[allow(unused_imports)]
-use http::Uri;
-
 fn lc_validate(
     links: &[Link],
     cfg: &Config,
     src_dir: &Path,
-    cache: &Cache,
+    cache: &mut Cache,
     files: &Files<String>,
-) -> linkcheck::validation::Outcomes {
-    let cache = Mutex::new(linkcheck::validation::Cache::from(cache));
+) -> Outcomes {
+    let options = Options::default()
+        .with_root_directory(src_dir)
+        .expect("The source directory doesn't exist?")
+        .set_links_may_traverse_the_root_directory(
+            cfg.traverse_parent_directories,
+        );
+
     let ctx = Context {
         client: cfg.client(),
-        filesystem_options: cfg.options(),
+        filesystem_options: options,
         cfg,
         src_dir,
-        cache,
+        cache: Mutex::new(cache.clone()),
         files,
     };
     let links = collate_links(links, src_dir, files);
 
     let mut runtime = Runtime::new().unwrap();
-    runtime.block_on(async {
-        let mut outcomes = linkcheck::validation::Outcomes::default();
+    let got = runtime.block_on(async {
+        let mut outcomes = Outcomes::default();
 
         for (current_dir, links) in links {
             outcomes
@@ -41,7 +47,13 @@ fn lc_validate(
         }
 
         outcomes
-    })
+    });
+
+    *cache = ctx
+        .cache
+        .into_inner()
+        .expect("We statically know this isn't used");
+    got
 }
 
 fn collate_links<'a>(
@@ -65,10 +77,16 @@ fn collate_links<'a>(
 }
 
 fn merge_outcomes(
-    outcomes: linkcheck::validation::Outcomes,
+    outcomes: Outcomes,
     incomplete_links: Vec<IncompleteLink>,
 ) -> ValidationOutcome {
-    unimplemented!()
+    ValidationOutcome {
+        invalid_links: outcomes.invalid,
+        ignored: outcomes.ignored,
+        valid_links: outcomes.valid,
+        unknown_category: outcomes.unknown_category,
+        incomplete_links,
+    }
 }
 
 /// Try to validate the provided [`Link`]s.
@@ -76,7 +94,7 @@ pub fn validate(
     links: &[Link],
     cfg: &Config,
     src_dir: &Path,
-    cache: &Cache,
+    cache: &mut Cache,
     files: &Files<String>,
     incomplete_links: Vec<IncompleteLink>,
 ) -> Result<ValidationOutcome, Error> {
@@ -95,7 +113,7 @@ pub struct ValidationOutcome {
     /// [`Config::follow_web_links`]).
     pub ignored: Vec<Link>,
     /// Links which we don't know how to handle.
-    pub unknown_schema: Vec<Link>,
+    pub unknown_category: Vec<Link>,
     /// Potentially incomplete links.
     pub incomplete_links: Vec<IncompleteLink>,
 }

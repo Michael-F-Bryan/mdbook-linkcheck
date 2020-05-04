@@ -1,5 +1,4 @@
 use crate::hashed_regex::HashedRegex;
-use linkcheck::validation::Options;
 use reqwest::Client;
 use serde_derive::{Deserialize, Serialize};
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
@@ -64,8 +63,6 @@ impl Config {
             .insert(http::header::USER_AGENT, self.user_agent.parse().unwrap());
         Client::builder().default_headers(headers).build().unwrap()
     }
-
-    pub(crate) fn options(&self) -> Options { Options::default() }
 }
 
 impl Default for Config {

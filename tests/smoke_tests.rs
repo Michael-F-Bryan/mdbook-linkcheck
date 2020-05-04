@@ -36,7 +36,7 @@ fn check_all_links_in_a_valid_book() {
     let valid_links: Vec<_> = output
         .valid_links
         .iter()
-        .map(|link| link.uri.to_string())
+        .map(|link| link.href.to_string())
         .collect();
     assert_same_links(expected_valid, valid_links);
     assert!(
@@ -62,7 +62,7 @@ fn correctly_find_broken_links() {
     let broken: Vec<_> = output
         .invalid_links
         .iter()
-        .map(|invalid| invalid.link.uri.to_string())
+        .map(|invalid| invalid.link.href.to_string())
         .collect();
     assert_same_links(broken, expected);
     // we also have one incomplete link
