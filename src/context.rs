@@ -1,9 +1,14 @@
 use crate::Config;
 use codespan::Files;
-use linkcheck::validation::{Cache, Options};
-use reqwest::Client;
+use http::HeaderMap;
+use linkcheck::{
+    validation::{Cache, Options},
+    Link,
+};
+use reqwest::{Client, Url};
 use std::{
     path::Path,
+    str::FromStr,
     sync::{Mutex, MutexGuard},
 };
 
@@ -25,5 +30,43 @@ impl<'a> linkcheck::validation::Context for Context<'a> {
 
     fn cache(&self) -> Option<MutexGuard<Cache>> {
         Some(self.cache.lock().expect("Lock was poisoned"))
+    }
+
+    fn should_ignore(&self, link: &Link) -> bool {
+        http::Uri::from_str(&link.href).is_ok()
+            && self
+                .cfg
+                .exclude
+                .iter()
+                .any(|re| re.find(&link.href).is_some())
+    }
+
+    fn url_specific_headers(&self, url: &Url) -> HeaderMap {
+        let url = url.to_string();
+        let mut headers = HeaderMap::new();
+
+        let extra_headers = self
+            .cfg
+            .http_headers
+            .iter()
+            .filter_map(|(re, extra)| {
+                if re.find(&url).is_some() {
+                    Some(extra)
+                } else {
+                    None
+                }
+            })
+            .flatten();
+
+        for header in extra_headers {
+            let crate::config::HttpHeader {
+                name,
+                interpolated_value,
+                ..
+            } = header;
+            headers.insert(name.clone(), interpolated_value.clone());
+        }
+
+        headers
     }
 }

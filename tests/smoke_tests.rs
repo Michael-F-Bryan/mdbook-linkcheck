@@ -1,10 +1,11 @@
 #[macro_use]
 extern crate pretty_assertions;
 
+use anyhow::Error;
 use codespan::Files;
-use failure::Error;
+use linkcheck::validation::Cache;
 use mdbook::{renderer::RenderContext, MDBook};
-use mdbook_linkcheck::{Cache, Config, HashedRegex, ValidationOutcome};
+use mdbook_linkcheck::{Config, HashedRegex, ValidationOutcome};
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -18,17 +19,17 @@ fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
 fn check_all_links_in_a_valid_book() {
     let root = test_dir().join("all-green");
     let expected_valid = &[
-        "./chapter_1.md",
+        "../chapter_1.md",
+        "../chapter_1.md",
         "./chapter_1.html",
-        "nested/index.md",
-        "../chapter_1.md",
-        "/chapter_1.md",
-        "../chapter_1.md",
-        "/chapter_1.md",
+        "./chapter_1.md",
         "./sibling.md",
-        "sibling.md",
-        "https://www.google.com/",
+        "/chapter_1.md",
+        "/chapter_1.md",
         "https://crates.io/crates/mdbook-linkcheck",
+        "https://www.google.com/",
+        "nested/index.md",
+        "sibling.md",
     ];
 
     let output = run_link_checker(&root).unwrap();
@@ -116,6 +117,8 @@ fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
         mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);
     let (links, incomplete) = mdbook_linkcheck::extract_links(file_ids, &files);
 
-    let cache = Cache::default();
-    mdbook_linkcheck::validate(&links, &cfg, &src, &cache, &files, incomplete)
+    let mut cache = Cache::default();
+    mdbook_linkcheck::validate(
+        &links, &cfg, &src, &mut cache, &files, incomplete,
+    )
 }

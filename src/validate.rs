@@ -1,7 +1,7 @@
 use crate::{Config, Context, IncompleteLink, WarningPolicy};
+use anyhow::Error;
 use codespan::{FileId, Files, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label, Severity};
-use failure::Error;
 use linkcheck::{
     validation::{Cache, InvalidLink, Options, Outcomes},
     Link,
