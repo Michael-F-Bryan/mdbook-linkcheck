@@ -34,6 +34,8 @@ rayon = "1.0"
 either = "1.5"
 percent-encoding = "2.1.0"
 dunce = "1.0.0"
+linkcheck = "0.1.0"
+tokio = "0.2.20"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"

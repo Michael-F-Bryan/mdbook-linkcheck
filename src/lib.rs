@@ -25,6 +25,7 @@ pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
 mod cache;
 mod config;
+mod context;
 mod hashed_regex;
 mod links;
 mod validate;
@@ -32,11 +33,10 @@ mod validate;
 pub use crate::{
     cache::Cache,
     config::{Config, WarningPolicy},
+    context::Context,
     hashed_regex::HashedRegex,
     links::{extract as extract_links, IncompleteLink, Link},
-    validate::{
-        validate, InvalidLink, Reason, UnknownScheme, ValidationOutcome,
-    },
+    validate::{validate, ValidationOutcome},
 };
 
 use codespan::{FileId, Files};

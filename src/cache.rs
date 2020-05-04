@@ -70,6 +70,22 @@ impl Cache {
     }
 }
 
+impl Clone for Cache {
+    fn clone(&self) -> Self {
+        let links = self.links.read().expect("lock was poisoned");
+
+        Cache {
+            links: RwLock::new(links.clone()),
+            cache_hits: AtomicUsize::new(
+                self.cache_hits.load(Ordering::SeqCst),
+            ),
+            cache_misses: AtomicUsize::new(
+                self.cache_misses.load(Ordering::SeqCst),
+            ),
+        }
+    }
+}
+
 /// An entry in the cache.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct CacheEntry {
@@ -98,5 +114,24 @@ impl CacheEntry {
             SystemTime::UNIX_EPOCH + Duration::from_secs(self.unix_timestamp);
 
         ts.elapsed().expect("Entry timestamp was in the future")
+    }
+}
+
+impl<'a> From<&'a Cache> for linkcheck::validation::Cache {
+    fn from(other: &'a Cache) -> Self {
+        let mut cache = linkcheck::validation::Cache::new();
+        let links = other.links.read().expect("lock poisoned");
+
+        for (key, value) in links.iter() {
+            let timestamp = SystemTime::UNIX_EPOCH
+                + Duration::from_secs(value.unix_timestamp);
+            let value = linkcheck::validation::CacheEntry::new(
+                timestamp,
+                value.successful,
+            );
+            cache.insert(key.parse().unwrap(), value);
+        }
+
+        cache
     }
 }

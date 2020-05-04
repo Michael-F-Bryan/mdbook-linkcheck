@@ -66,6 +66,14 @@ impl Link {
     }
 }
 
+impl<'a> From<&'a Link> for linkcheck::Link {
+    fn from(link: &'a Link) -> Self {
+        let Link { uri, span, file } = link;
+
+        linkcheck::Link::new(uri.to_string(), *span, *file)
+    }
+}
+
 fn parse_uri(uri: &str) -> Result<Uri, failure::Error> {
     // it might be a valid URI already
     if let Ok(uri) = Uri::from_str(uri) {

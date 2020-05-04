@@ -1,4 +1,6 @@
 use crate::hashed_regex::HashedRegex;
+use linkcheck::validation::Options;
+use reqwest::Client;
 use serde_derive::{Deserialize, Serialize};
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
@@ -55,6 +57,15 @@ impl Config {
     pub fn should_skip(&self, link: &str) -> bool {
         self.exclude.iter().any(|pat| pat.find(link).is_some())
     }
+
+    pub(crate) fn client(&self) -> Client {
+        let mut headers = http::HeaderMap::new();
+        headers
+            .insert(http::header::USER_AGENT, self.user_agent.parse().unwrap());
+        Client::builder().default_headers(headers).build().unwrap()
+    }
+
+    pub(crate) fn options(&self) -> Options { Options::default() }
 }
 
 impl Default for Config {

@@ -1,6 +1,6 @@
 use crate::{
     cache::{Cache, CacheEntry},
-    Config, IncompleteLink, Link, WarningPolicy,
+    Config, Context, IncompleteLink, Link, WarningPolicy,
 };
 use codespan::{FileId, Files, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label, Severity};
@@ -10,14 +10,75 @@ use http::HeaderMap;
 use rayon::prelude::*;
 use reqwest::{blocking::Client, StatusCode};
 use std::{
+    collections::HashMap,
     ffi::OsStr,
     fmt::{self, Display, Formatter},
-    path::Path,
+    path::{Path, PathBuf},
+    sync::Mutex,
     time::{Duration, SystemTime},
 };
+use tokio::runtime::Runtime;
 
 #[allow(unused_imports)]
 use http::Uri;
+
+fn lc_validate(
+    links: &[Link],
+    cfg: &Config,
+    src_dir: &Path,
+    cache: &Cache,
+    files: &Files<String>,
+) -> linkcheck::validation::Outcomes {
+    let cache = Mutex::new(linkcheck::validation::Cache::from(cache));
+    let ctx = Context {
+        client: cfg.client(),
+        filesystem_options: cfg.options(),
+        cfg,
+        src_dir,
+        cache,
+        files,
+    };
+    let links = collate_links(links, src_dir, files);
+
+    let mut runtime = Runtime::new().unwrap();
+    runtime.block_on(async {
+        let mut outcomes = linkcheck::validation::Outcomes::default();
+
+        for (current_dir, links) in links {
+            outcomes
+                .merge(linkcheck::validate(&current_dir, links, &ctx).await);
+        }
+
+        outcomes
+    })
+}
+
+fn collate_links<'a>(
+    links: &'a [Link],
+    src_dir: &Path,
+    files: &'a Files<String>,
+) -> impl Iterator<Item = (PathBuf, Vec<linkcheck::Link>)> {
+    let mut links_by_directory: HashMap<PathBuf, Vec<linkcheck::Link>> =
+        HashMap::new();
+
+    for link in links {
+        let mut path = src_dir.join(files.name(link.file));
+        path.pop();
+        links_by_directory
+            .entry(path)
+            .or_default()
+            .push(linkcheck::Link::from(link));
+    }
+
+    links_by_directory.into_iter()
+}
+
+fn merge_outcomes(
+    outcomes: linkcheck::validation::Outcomes,
+    incomplete_links: Vec<IncompleteLink>,
+) -> ValidationOutcome {
+    unimplemented!()
+}
 
 /// Try to validate the provided [`Link`]s.
 pub fn validate(
@@ -28,6 +89,7 @@ pub fn validate(
     files: &Files<String>,
     incomplete_links: Vec<IncompleteLink>,
 ) -> Result<ValidationOutcome, Error> {
+    let got = lc_validate(links, cfg, src_dir, cache, files);
     let mut outcome = ValidationOutcome {
         incomplete_links,
         ..Default::default()
