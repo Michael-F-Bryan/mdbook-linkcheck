@@ -3,7 +3,7 @@ extern crate pretty_assertions;
 
 use anyhow::Error;
 use codespan::Files;
-use linkcheck::validation::Cache;
+use linkcheck::validation::{Cache, Reason};
 use mdbook::{renderer::RenderContext, MDBook};
 use mdbook_linkcheck::{Config, HashedRegex, ValidationOutcome};
 use std::{
@@ -56,6 +56,7 @@ fn correctly_find_broken_links() {
         "./chapter_1.md",
         "./second/directory.md",
         "http://this-doesnt-exist.com.au.nz.us/",
+        "sibling.md",
     ];
 
     let output = run_link_checker(&root).unwrap();
@@ -69,6 +70,36 @@ fn correctly_find_broken_links() {
     // we also have one incomplete link
     assert_eq!(output.incomplete_links.len(), 1);
     assert_eq!(output.incomplete_links[0].text, "incomplete link");
+}
+
+#[test]
+fn detect_when_a_linked_file_isnt_in_summary_md() {
+    let root = test_dir().join("broken-links");
+
+    let output = run_link_checker(&root).unwrap();
+
+    let broken_link = output
+        .invalid_links
+        .iter()
+        .find(|invalid| invalid.link.href == "sibling.md")
+        .unwrap();
+
+    assert!(is_specific_error::<mdbook_linkcheck::NotInSummary>(
+        &broken_link.reason
+    ));
+}
+
+fn is_specific_error<E>(reason: &Reason) -> bool
+where
+    E: std::error::Error + 'static,
+{
+    if let Reason::Io(io) = reason {
+        if let Some(inner) = io.get_ref() {
+            return inner.is::<E>();
+        }
+    }
+
+    false
 }
 
 fn assert_same_links<L, R, P, Q>(left: L, right: R)

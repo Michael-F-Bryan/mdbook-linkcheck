@@ -34,7 +34,7 @@ pub use crate::{
     context::Context,
     hashed_regex::HashedRegex,
     links::{extract as extract_links, IncompleteLink},
-    validate::{validate, ValidationOutcome},
+    validate::{validate, ValidationOutcome, NotInSummary},
 };
 
 use anyhow::{Context as _, Error};

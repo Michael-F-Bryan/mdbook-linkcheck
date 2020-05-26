@@ -38,7 +38,7 @@ fn lc_validate(
         .set_links_may_traverse_the_root_directory(
             cfg.traverse_parent_directories,
         )
-        .set_custom_validation(ensure_included_in_book(file_names));
+        .set_custom_validation(ensure_included_in_book(src_dir, file_names));
 
     let ctx = Context {
         client: cfg.client(),
@@ -73,10 +73,17 @@ fn lc_validate(
 }
 
 fn ensure_included_in_book(
+    src_dir: &Path,
     file_names: Vec<OsString>,
 ) -> impl Fn(&Path, Option<&str>) -> Result<(), Reason> {
+    let src_dir = src_dir.to_path_buf();
+
     move |resolved_link, _| {
-        if file_names.iter().any(|name| resolved_link.ends_with(name)) {
+        let part_of_the_book = resolved_link.starts_with(&src_dir);
+        let was_included_in_summary =
+            file_names.iter().any(|name| resolved_link.ends_with(name));
+
+        if !part_of_the_book || was_included_in_summary {
             Ok(())
         } else {
             use std::io::{Error, ErrorKind};
@@ -91,9 +98,12 @@ fn ensure_included_in_book(
     }
 }
 
+/// An error that is emitted if something links to a file that exists on disk,
+/// but isn't included in the book.
 #[derive(Debug)]
-struct NotInSummary {
-    path: PathBuf,
+pub struct NotInSummary {
+    /// The file's full path.
+    pub path: PathBuf,
 }
 
 impl Display for NotInSummary {
