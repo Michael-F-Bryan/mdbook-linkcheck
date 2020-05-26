@@ -53,8 +53,11 @@ fn lc_validate(
         outcomes
     });
 
-    *cache = ctx
-        .cache
+    // move the cache out of ctx. We'd get a borrowing error if anything was
+    // using it
+    let updated_cache = ctx.cache;
+
+    *cache = updated_cache
         .into_inner()
         .expect("We statically know this isn't used");
     got

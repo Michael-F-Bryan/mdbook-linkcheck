@@ -89,11 +89,13 @@ where
 }
 
 fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
+    let _ = env_logger::builder()
+        .filter(Some("linkcheck"), log::LevelFilter::Debug)
+        .filter(Some("mdbook-linkcheck"), log::LevelFilter::Debug)
+        .is_test(true)
+        .try_init();
+
     assert!(root.exists());
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "mdbook_linkcheck=debug");
-    }
-    env_logger::try_init().ok();
 
     let mut md = MDBook::load(root).unwrap();
     let cfg = Config {
