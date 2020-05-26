@@ -3,11 +3,13 @@ use anyhow::Error;
 use codespan::{FileId, Files, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label, Severity};
 use linkcheck::{
-    validation::{Cache, InvalidLink, Options, Outcomes},
+    validation::{Cache, InvalidLink, Options, Outcomes, Reason},
     Link,
 };
 use std::{
     collections::HashMap,
+    ffi::OsString,
+    fmt::{self, Display, Formatter},
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -19,7 +21,13 @@ fn lc_validate(
     src_dir: &Path,
     cache: &mut Cache,
     files: &Files<String>,
+    file_ids: &[FileId],
 ) -> Outcomes {
+    let file_names = file_ids
+        .iter()
+        .map(|id| files.name(*id).to_os_string())
+        .collect();
+
     let options = Options::default()
         .with_root_directory(src_dir)
         .expect("The source directory doesn't exist?")
@@ -29,7 +37,8 @@ fn lc_validate(
         )])
         .set_links_may_traverse_the_root_directory(
             cfg.traverse_parent_directories,
-        );
+        )
+        .set_custom_validation(ensure_included_in_book(file_names));
 
     let ctx = Context {
         client: cfg.client(),
@@ -62,6 +71,42 @@ fn lc_validate(
         .expect("We statically know this isn't used");
     got
 }
+
+fn ensure_included_in_book(
+    file_names: Vec<OsString>,
+) -> impl Fn(&Path, Option<&str>) -> Result<(), Reason> {
+    move |resolved_link, _| {
+        if file_names.iter().any(|name| resolved_link.ends_with(name)) {
+            Ok(())
+        } else {
+            use std::io::{Error, ErrorKind};
+
+            Err(Reason::Io(Error::new(
+                ErrorKind::Other,
+                NotInSummary {
+                    path: resolved_link.to_path_buf(),
+                },
+            )))
+        }
+    }
+}
+
+#[derive(Debug)]
+struct NotInSummary {
+    path: PathBuf,
+}
+
+impl Display for NotInSummary {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "It looks like \"{}\" wasn't included in SUMMARY.md",
+            self.path.display()
+        )
+    }
+}
+
+impl std::error::Error for NotInSummary {}
 
 fn collate_links<'a>(
     links: &'a [Link],
@@ -103,9 +148,10 @@ pub fn validate(
     src_dir: &Path,
     cache: &mut Cache,
     files: &Files<String>,
+    file_ids: &[FileId],
     incomplete_links: Vec<IncompleteLink>,
 ) -> Result<ValidationOutcome, Error> {
-    let got = lc_validate(links, cfg, src_dir, cache, files);
+    let got = lc_validate(links, cfg, src_dir, cache, files, file_ids);
     Ok(merge_outcomes(got, incomplete_links))
 }
 

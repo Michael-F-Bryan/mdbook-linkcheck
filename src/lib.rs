@@ -157,7 +157,8 @@ fn check_links(
     log::info!("Scanning book for links");
     let mut files = Files::new();
     let file_ids = crate::load_files_into_memory(&ctx.book, &mut files);
-    let (links, incomplete_links) = crate::extract_links(file_ids, &files);
+    let (links, incomplete_links) =
+        crate::extract_links(file_ids.clone(), &files);
     log::info!(
         "Found {} links ({} incomplete links)",
         links.len(),
@@ -165,8 +166,15 @@ fn check_links(
     );
     let src = dunce::canonicalize(ctx.source_dir())
         .context("Unable to resolve the source directory")?;
-    let outcome =
-        crate::validate(&links, &cfg, &src, cache, &files, incomplete_links)?;
+    let outcome = crate::validate(
+        &links,
+        &cfg,
+        &src,
+        cache,
+        &files,
+        &file_ids,
+        incomplete_links,
+    )?;
 
     Ok((files, outcome))
 }

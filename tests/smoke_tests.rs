@@ -117,10 +117,11 @@ fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
 
     let file_ids =
         mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);
-    let (links, incomplete) = mdbook_linkcheck::extract_links(file_ids, &files);
+    let (links, incomplete) =
+        mdbook_linkcheck::extract_links(file_ids.clone(), &files);
 
     let mut cache = Cache::default();
     mdbook_linkcheck::validate(
-        &links, &cfg, &src, &mut cache, &files, incomplete,
+        &links, &cfg, &src, &mut cache, &files, &file_ids, incomplete,
     )
 }
