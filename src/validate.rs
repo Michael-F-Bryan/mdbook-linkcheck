@@ -277,9 +277,9 @@ impl ValidationOutcome {
         files: &Files<String>,
     ) {
         const WARNING_MESSAGE: &'static str = r#"When viewing a document directly from the file system and click on an
-absolute link (e.g. `/clauses.md`), the browser will try to navigate to
-`/clauses.md` on the current file system (i.e. the `clauses.md` file inside
-`/` or `C:\`) instead of the `clauses.md` file at book's base directory as
+absolute link (e.g. `/index.md`), the browser will try to navigate to
+`/index.md` on the current file system (i.e. the `clauses.md` file inside
+`/` or `C:\`) instead of the `index.md` file at book's base directory as
 intended.
 
 This leads to a situation where everyhthing will seem to work fine when viewed
@@ -320,7 +320,7 @@ For more details, see https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues
             {
                 notes.push(format!(
                     "Suggestion: change the link to \"{}\"",
-                    suggested_change.display()
+                    suggested_change
                 ));
             }
 
@@ -336,7 +336,7 @@ For more details, see https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues
 }
 
 // Path diffing, copied from https://crates.io/crates/pathdiff with some tweaks
-fn relative_path_to_file<S, D>(start: S, destination: D) -> Option<PathBuf>
+fn relative_path_to_file<S, D>(start: S, destination: D) -> Option<String>
 where
     S: AsRef<Path>,
     D: AsRef<Path>,
@@ -381,13 +381,15 @@ where
             },
         }
     }
-    Some(
-        comps
-            .iter()
-            .map(|c| c.as_os_str())
-            .chain(std::iter::once(destination_name))
-            .collect(),
-    )
+
+    let path: PathBuf = comps
+        .iter()
+        .map(|c| c.as_os_str())
+        .chain(std::iter::once(destination_name))
+        .collect();
+
+    // Note: URLs always use forward slashes
+    Some(path.display().to_string().replace('\\', "/"))
 }
 
 fn most_specific_error_message(link: &InvalidLink) -> String {
@@ -454,7 +456,7 @@ mod tests {
 
         for (start, destination, should_be) in inputs {
             let got = relative_path_to_file(start, destination).unwrap();
-            assert_eq!(got, Path::new(should_be));
+            assert_eq!(got, should_be);
         }
     }
 }
