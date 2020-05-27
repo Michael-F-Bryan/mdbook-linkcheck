@@ -10,7 +10,7 @@ use std::{
     collections::HashMap,
     ffi::OsString,
     fmt::{self, Display, Formatter},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Mutex,
 };
 use tokio::runtime::Runtime;
@@ -196,6 +196,7 @@ impl ValidationOutcome {
 
         self.add_invalid_link_diagnostics(&mut diags);
         self.add_incomplete_link_diagnostics(warning_policy, &mut diags, files);
+        self.warn_on_absolute_links(warning_policy, &mut diags, files);
 
         diags
     }
@@ -247,6 +248,112 @@ impl ValidationOutcome {
             diags.push(diag);
         }
     }
+
+    /// As shown in https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/33
+    /// absolute links are actually a bit of a foot gun when the document is
+    /// being read directly from the filesystem.
+    fn warn_on_absolute_links(
+        &self,
+        warning_policy: WarningPolicy,
+        diags: &mut Vec<Diagnostic<FileId>>,
+        files: &Files<String>,
+    ) {
+        const WARNING_MESSAGE: &'static str = "";
+        let severity = match warning_policy {
+            WarningPolicy::Error => Severity::Error,
+            WarningPolicy::Warn => Severity::Warning,
+            WarningPolicy::Ignore => return,
+        };
+
+        let absolute_links = self
+            .valid_links
+            .iter()
+            .filter(|link| link.href.starts_with("/"));
+
+        let mut reasoning_emitted = false;
+
+        for link in absolute_links {
+            let mut notes = Vec::new();
+
+            if let Some(suggested_change) =
+                relative_path_to_file(files.name(link.file), &link.href)
+            {
+                notes.push(format!(
+                    "Suggestion: change the link to \"{}\"",
+                    suggested_change.display()
+                ));
+            }
+
+            if !reasoning_emitted {
+                notes.push(String::from(WARNING_MESSAGE));
+                notes.push(String::from("For more details, see https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/33"));
+                reasoning_emitted = true;
+            }
+
+            let diag = Diagnostic::new(severity)
+                .with_message("Absolute link should be made relative")
+                .with_notes(notes)
+                .with_labels(vec![Label::primary(link.file, link.span)
+                    .with_message("Absolute link should be made relative")]);
+
+            diags.push(diag);
+        }
+    }
+}
+
+// Path diffing, copied from https://crates.io/crates/pathdiff with some tweaks
+fn relative_path_to_file<S, D>(start: S, destination: D) -> Option<PathBuf>
+where
+    S: AsRef<Path>,
+    D: AsRef<Path>,
+{
+    let destination = destination.as_ref();
+    let start = start.as_ref();
+    log::debug!(
+        "Trying to find the relative path from \"{}\" to \"{}\"",
+        start.display(),
+        destination.display()
+    );
+
+    let start = start.parent()?;
+    let destination_name = destination.file_name()?;
+    let destination = destination.parent()?;
+
+    let mut ita = destination.components().skip(1);
+    let mut itb = start.components();
+
+    let mut comps: Vec<Component> = vec![];
+
+    loop {
+        match (ita.next(), itb.next()) {
+            (None, None) => break,
+            (Some(a), None) => {
+                comps.push(a);
+                comps.extend(ita.by_ref());
+                break;
+            },
+            (None, _) => comps.push(Component::ParentDir),
+            (Some(a), Some(b)) if comps.is_empty() && a == b => (),
+            (Some(a), Some(b)) if b == Component::CurDir => comps.push(a),
+            (Some(_), Some(b)) if b == Component::ParentDir => return None,
+            (Some(a), Some(_)) => {
+                comps.push(Component::ParentDir);
+                for _ in itb {
+                    comps.push(Component::ParentDir);
+                }
+                comps.push(a);
+                comps.extend(ita.by_ref());
+                break;
+            },
+        }
+    }
+    Some(
+        comps
+            .iter()
+            .map(|c| c.as_os_str())
+            .chain(std::iter::once(destination_name))
+            .collect(),
+    )
 }
 
 fn most_specific_error_message(link: &InvalidLink) -> String {
@@ -296,5 +403,24 @@ fn resolve_incomplete_link_span(
     match src.find(&needle).map(|ix| ix as u32) {
         Some(start_ix) => Span::new(start_ix, start_ix + needle.len() as u32),
         None => files.source_span(incomplete.file),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_some_simple_relative_paths() {
+        let inputs = vec![
+            ("index.md", "/other.md", "other.md"),
+            ("index.md", "/nested/other.md", "nested/other.md"),
+            ("nested/index.md", "/other.md", "../other.md"),
+        ];
+
+        for (start, destination, should_be) in inputs {
+            let got = relative_path_to_file(start, destination).unwrap();
+            assert_eq!(got, Path::new(should_be));
+        }
     }
 }
