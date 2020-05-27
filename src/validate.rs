@@ -276,7 +276,24 @@ impl ValidationOutcome {
         diags: &mut Vec<Diagnostic<FileId>>,
         files: &Files<String>,
     ) {
-        const WARNING_MESSAGE: &'static str = "";
+        const WARNING_MESSAGE: &'static str = r#"When viewing a document directly from the file system and click on an
+absolute link (e.g. `/clauses.md`), the browser will try to navigate to
+`/clauses.md` on the current file system (i.e. the `clauses.md` file inside
+`/` or `C:\`) instead of the `clauses.md` file at book's base directory as
+intended.
+
+This leads to a situation where everyhthing will seem to work fine when viewed
+using a web server (e.g. GitHub Pages or `mdbook serve`), but users viewing the
+book from the file system will encounter broken links.
+
+To ignore this warning, you can edit `book.toml` and set the warning policy to
+"ignore".
+
+    [output.linkcheck]
+    warning-policy = "ignore"
+
+For more details, see https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/33
+"#;
         let severity = match warning_policy {
             WarningPolicy::Error => Severity::Error,
             WarningPolicy::Warn => Severity::Warning,
@@ -293,6 +310,11 @@ impl ValidationOutcome {
         for link in absolute_links {
             let mut notes = Vec::new();
 
+            if !reasoning_emitted {
+                notes.push(String::from(WARNING_MESSAGE));
+                reasoning_emitted = true;
+            }
+
             if let Some(suggested_change) =
                 relative_path_to_file(files.name(link.file), &link.href)
             {
@@ -300,12 +322,6 @@ impl ValidationOutcome {
                     "Suggestion: change the link to \"{}\"",
                     suggested_change.display()
                 ));
-            }
-
-            if !reasoning_emitted {
-                notes.push(String::from(WARNING_MESSAGE));
-                notes.push(String::from("For more details, see https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/33"));
-                reasoning_emitted = true;
             }
 
             let diag = Diagnostic::new(severity)
