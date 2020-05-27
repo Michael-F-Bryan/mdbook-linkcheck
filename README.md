@@ -95,22 +95,25 @@ cache-timeout = 43200
 warning-policy = "warn"
 
 # Extra HTTP headers that must be send to certain web sites
-# in order to link check to succeed
+# in order to link check to succeed.
 #
 # This is a dictionary (map), with keys being regexes
 # matching a set of web sites, and values being an array of
 # the headers.
-[http-headers]
+[output.linkcheck.http-headers]
 # Any hyperlink that contains this regexp will be sent
 # the "Accept: text/html" header
 'crates\.io' = ["Accept: text/html"]
 
-# mdbook-linkcheck will interpolate environment variables
-# into your header via $IDENT.
+# mdbook-linkcheck will interpolate environment variables into your header via
+# $IDENT.
 #
-# If this is not what you want
-# you must escape the `$` symbol, like `\$TOKEN`. `\` itself can also be escaped
-# via `\\`.
+# If this is not what you want you must escape the `$` symbol, like `\$TOKEN`.
+# `\` itself can also be escaped via `\\`.
+#
+# Note: If interpolation fails, the header will be skipped and the failure will
+# be logged. This can be useful if a particular header isn't always necessary,
+# but may be helpful (e.g. when working with rate limiting).
 'website\.com' = ["Authorization: Basic $TOKEN"]
 ```
 

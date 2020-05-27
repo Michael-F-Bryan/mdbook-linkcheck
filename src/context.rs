@@ -1,6 +1,6 @@
-use crate::Config;
+use crate::{Config, HashedRegex};
 use codespan::Files;
-use http::HeaderMap;
+use http::header::{HeaderMap, HeaderName, HeaderValue};
 use linkcheck::{
     validation::{Cache, Options},
     Link,
@@ -20,6 +20,8 @@ pub struct Context<'a> {
     pub(crate) files: &'a Files<String>,
     pub(crate) client: Client,
     pub(crate) filesystem_options: Options,
+    pub(crate) interpolated_headers:
+        Vec<(HashedRegex, Vec<(HeaderName, HeaderValue)>)>,
 }
 
 impl<'a> linkcheck::validation::Context for Context<'a> {
@@ -42,26 +44,12 @@ impl<'a> linkcheck::validation::Context for Context<'a> {
         let url = url.to_string();
         let mut headers = HeaderMap::new();
 
-        let extra_headers = self
-            .cfg
-            .http_headers
-            .iter()
-            .filter_map(|(re, extra)| {
-                if re.find(&url).is_some() {
-                    Some(extra)
-                } else {
-                    None
+        for (pattern, matching_headers) in &self.interpolated_headers {
+            if pattern.find(&url).is_some() {
+                for (name, value) in matching_headers {
+                    headers.insert(name.clone(), value.clone());
                 }
-            })
-            .flatten();
-
-        for header in extra_headers {
-            let crate::config::HttpHeader {
-                name,
-                interpolated_value,
-                ..
-            } = header;
-            headers.insert(name.clone(), interpolated_value.clone());
+            }
         }
 
         headers

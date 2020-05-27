@@ -43,6 +43,8 @@ fn lc_validate(
         .set_default_file("README.md")
         .set_custom_validation(ensure_included_in_book(src_dir, file_names));
 
+    let interpolated_headers = cfg.interpolate_headers(cfg.warning_policy);
+
     let ctx = Context {
         client: cfg.client(),
         filesystem_options: options,
@@ -50,6 +52,7 @@ fn lc_validate(
         src_dir,
         cache: Mutex::new(cache.clone()),
         files,
+        interpolated_headers,
     };
     let links = collate_links(links, src_dir, files);
 

@@ -1,10 +1,15 @@
 use crate::hashed_regex::HashedRegex;
 use anyhow::Error;
 use http::header::{HeaderName, HeaderValue};
+use log::Level;
 use reqwest::Client;
 use serde_derive::{Deserialize, Serialize};
 use std::{
-    collections::HashMap, convert::TryFrom, str::FromStr, time::Duration,
+    collections::HashMap,
+    convert::TryFrom,
+    fmt::{self, Display, Formatter},
+    str::FromStr,
+    time::Duration,
 };
 
 /// The configuration options available with this backend.
@@ -40,11 +45,18 @@ pub struct Config {
 pub struct HttpHeader {
     pub name: HeaderName,
     pub value: String,
+}
 
-    // This is a separate field because interpolated env vars
-    // may contain some secrets that should not be revealed
-    // in logs, config, error messages and the like.
-    pub(crate) interpolated_value: HeaderValue,
+impl HttpHeader {
+    pub(crate) fn interpolate(&self) -> Result<HeaderValue, Error> {
+        interpolate_env(&self.value)
+    }
+}
+
+impl Display for HttpHeader {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.name, self.value)
+    }
 }
 
 impl Config {
@@ -66,6 +78,44 @@ impl Config {
         headers
             .insert(http::header::USER_AGENT, self.user_agent.parse().unwrap());
         Client::builder().default_headers(headers).build().unwrap()
+    }
+
+    pub(crate) fn interpolate_headers(
+        &self,
+        warning_policy: WarningPolicy,
+    ) -> Vec<(HashedRegex, Vec<(HeaderName, HeaderValue)>)> {
+        let mut all_headers = Vec::new();
+        let log_level = warning_policy.to_log_level();
+
+        for (pattern, headers) in &self.http_headers {
+            let mut interpolated = Vec::new();
+
+            for header in headers {
+                match header.interpolate() {
+                    Ok(value) => {
+                        interpolated.push((header.name.clone(), value))
+                    },
+                    Err(e) => {
+                        // We don't want failed interpolation (i.e. due to a
+                        // missing env variable) to abort the whole
+                        // linkchecking, so emit a warning and keep going.
+                        //
+                        // If it was important, the user would notice a "broken"
+                        // link and read back through the logs.
+                        log::log!(
+                            log_level,
+                            "Unable to interpolate \"{}\" because {}",
+                            header,
+                            e
+                        );
+                    },
+                }
+            }
+
+            all_headers.push((pattern.clone(), interpolated));
+        }
+
+        all_headers
     }
 }
 
@@ -91,16 +141,14 @@ impl FromStr for HttpHeader {
             Some(idx) => {
                 let name = s[..idx].parse()?;
                 let value = s[idx + 2..].to_string();
-                let interpolated_value = interpolate_env(&value)?;
                 Ok(HttpHeader {
                     name,
                     value,
-                    interpolated_value,
                 })
             },
 
             None => Err(Error::msg(format!(
-                "The `{}` HTTP header must contain `: ` but it doesn't",
+                "The `{}` HTTP header must be in the form `key: value` but it isn't",
                 s
             ))),
         }
@@ -209,6 +257,16 @@ pub enum WarningPolicy {
     Error,
 }
 
+impl WarningPolicy {
+    pub(crate) fn to_log_level(self) -> Level {
+        match self {
+            WarningPolicy::Error => Level::Error,
+            WarningPolicy::Warn => Level::Warn,
+            WarningPolicy::Ignore => Level::Debug,
+        }
+    }
+}
+
 impl Default for WarningPolicy {
     fn default() -> WarningPolicy { WarningPolicy::Warn }
 }
@@ -269,16 +327,14 @@ https = ["accept: html/text", "authorization: Basic $TOKEN"]
 
     #[test]
     fn interpolation() {
-        std::env::set_var("TOKEN", "QWxhZGRpbjpPcGVuU2VzYW1l");
-        let should_be = HttpHeader {
+        std::env::set_var("TOKEN", "abcdefg123456");
+        let header = HttpHeader {
             name: "Authorization".parse().unwrap(),
             value: "Basic $TOKEN".into(),
-            interpolated_value: "Basic QWxhZGRpbjpPcGVuU2VzYW1l"
-                .parse()
-                .unwrap(),
         };
+        let should_be: HeaderValue = "Basic abcdefg123456".parse().unwrap();
 
-        let got = HttpHeader::try_from("Authorization: Basic $TOKEN").unwrap();
+        let got = header.interpolate().unwrap();
 
         assert_eq!(got, should_be);
     }
