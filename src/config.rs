@@ -1,6 +1,11 @@
 use crate::hashed_regex::HashedRegex;
+use anyhow::Error;
+use http::header::{HeaderName, HeaderValue};
+use reqwest::Client;
 use serde_derive::{Deserialize, Serialize};
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
+use std::{
+    collections::HashMap, convert::TryFrom, str::FromStr, time::Duration,
+};
 
 /// The configuration options available with this backend.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -33,13 +38,13 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(try_from = "String", into = "String")]
 pub struct HttpHeader {
-    pub name: String,
+    pub name: HeaderName,
     pub value: String,
 
     // This is a separate field because interpolated env vars
     // may contain some secrets that should not be revealed
     // in logs, config, error messages and the like.
-    pub(crate) interpolated_value: String,
+    pub(crate) interpolated_value: HeaderValue,
 }
 
 impl Config {
@@ -54,6 +59,13 @@ impl Config {
     /// skipped.
     pub fn should_skip(&self, link: &str) -> bool {
         self.exclude.iter().any(|pat| pat.find(link).is_some())
+    }
+
+    pub(crate) fn client(&self) -> Client {
+        let mut headers = http::HeaderMap::new();
+        headers
+            .insert(http::header::USER_AGENT, self.user_agent.parse().unwrap());
+        Client::builder().default_headers(headers).build().unwrap()
     }
 }
 
@@ -71,13 +83,13 @@ impl Default for Config {
     }
 }
 
-impl TryFrom<&'_ str> for HttpHeader {
-    type Error = String;
+impl FromStr for HttpHeader {
+    type Err = Error;
 
-    fn try_from(s: &'_ str) -> Result<Self, String> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.find(": ") {
             Some(idx) => {
-                let name = s[..idx].to_string();
+                let name = s[..idx].parse()?;
                 let value = s[idx + 2..].to_string();
                 let interpolated_value = interpolate_env(&value)?;
                 Ok(HttpHeader {
@@ -87,18 +99,24 @@ impl TryFrom<&'_ str> for HttpHeader {
                 })
             },
 
-            None => Err(format!(
+            None => Err(Error::msg(format!(
                 "The `{}` HTTP header must contain `: ` but it doesn't",
                 s
-            )),
+            ))),
         }
     }
 }
 
-impl TryFrom<String> for HttpHeader {
-    type Error = String;
+impl TryFrom<&'_ str> for HttpHeader {
+    type Error = Error;
 
-    fn try_from(s: String) -> Result<Self, String> {
+    fn try_from(s: &'_ str) -> Result<Self, Error> { HttpHeader::from_str(s) }
+}
+
+impl TryFrom<String> for HttpHeader {
+    type Error = Error;
+
+    fn try_from(s: String) -> Result<Self, Error> {
         HttpHeader::try_from(s.as_str())
     }
 }
@@ -113,7 +131,7 @@ impl Into<String> for HttpHeader {
 fn default_cache_timeout() -> u64 { Config::DEFAULT_CACHE_TIMEOUT.as_secs() }
 fn default_user_agent() -> String { Config::DEFAULT_USER_AGENT.to_string() }
 
-fn interpolate_env(value: &str) -> Result<String, String> {
+fn interpolate_env(value: &str) -> Result<HeaderValue, Error> {
     use std::{iter::Peekable, str::CharIndices};
 
     fn is_ident(ch: char) -> bool { ch.is_ascii_alphanumeric() || ch == '_' }
@@ -158,10 +176,10 @@ fn interpolate_env(value: &str) -> Result<String, String> {
                     match std::env::var(name) {
                         Ok(env) => res.push_str(&env),
                         Err(e) => {
-                            return Err(format!(
+                            return Err(Error::msg(format!(
                                 "Failed to retrieve `{}` env var: {}",
                                 name, e
-                            ))
+                            )))
                         },
                     }
                 },
@@ -176,7 +194,7 @@ fn interpolate_env(value: &str) -> Result<String, String> {
         res.push('\\');
     }
 
-    Ok(res)
+    Ok(res.parse()?)
 }
 
 /// How should warnings be treated?
@@ -209,7 +227,7 @@ cache-timeout = 3600
 warning-policy = "error"
 
 [http-headers]
-https = ["Accept: html/text", "Authorization: Basic $TOKEN"]
+https = ["accept: html/text", "authorization: Basic $TOKEN"]
 "#;
 
     #[test]
@@ -253,9 +271,11 @@ https = ["Accept: html/text", "Authorization: Basic $TOKEN"]
     fn interpolation() {
         std::env::set_var("TOKEN", "QWxhZGRpbjpPcGVuU2VzYW1l");
         let should_be = HttpHeader {
-            name: "Authorization".into(),
+            name: "Authorization".parse().unwrap(),
             value: "Basic $TOKEN".into(),
-            interpolated_value: "Basic QWxhZGRpbjpPcGVuU2VzYW1l".into(),
+            interpolated_value: "Basic QWxhZGRpbjpPcGVuU2VzYW1l"
+                .parse()
+                .unwrap(),
         };
 
         let got = HttpHeader::try_from("Authorization: Basic $TOKEN").unwrap();

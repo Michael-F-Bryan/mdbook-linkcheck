@@ -23,28 +23,27 @@ extern crate pretty_assertions;
 /// A semver range specifying which versions of `mdbook` this crate supports.
 pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
-mod cache;
 mod config;
+mod context;
 mod hashed_regex;
 mod links;
 mod validate;
 
 pub use crate::{
-    cache::Cache,
     config::{Config, WarningPolicy},
+    context::Context,
     hashed_regex::HashedRegex,
-    links::{extract as extract_links, IncompleteLink, Link},
-    validate::{
-        validate, InvalidLink, Reason, UnknownScheme, ValidationOutcome,
-    },
+    links::{extract as extract_links, IncompleteLink},
+    validate::{validate, ValidationOutcome, NotInSummary},
 };
 
+use anyhow::{Context as _, Error};
 use codespan::{FileId, Files};
 use codespan_reporting::{
     diagnostic::{Diagnostic, Severity},
     term::termcolor::{ColorChoice, StandardStream},
 };
-use failure::{Error, ResultExt};
+use linkcheck::validation::Cache;
 use mdbook::{
     book::{Book, BookItem},
     renderer::RenderContext,
@@ -58,7 +57,7 @@ pub fn run(
     colour: ColorChoice,
     ctx: &RenderContext,
 ) -> Result<(), Error> {
-    let cache = load_cache(cache_file);
+    let mut cache = load_cache(cache_file);
 
     log::info!("Started the link checker");
 
@@ -71,20 +70,15 @@ pub fn run(
         }
     }
 
-    let (files, outcome) = check_links(&ctx, &cache, &cfg).compat()?;
-    log::debug!(
-        "cache hits: {}, cache misses: {}",
-        cache.cache_hits(),
-        cache.cache_misses()
-    );
+    let (files, outcome) = check_links(&ctx, &mut cache, &cfg)?;
     let diags = outcome.generate_diagnostics(&files, cfg.warning_policy);
-    report_errors(&files, &diags, colour).compat()?;
+    report_errors(&files, &diags, colour)?;
 
     save_cache(cache_file, &cache);
 
     if diags.iter().any(|diag| diag.severity >= Severity::Error) {
         log::info!("{} broken links found", outcome.invalid_links.len());
-        Err(failure::err_msg("One or more incorrect links"))
+        Err(Error::msg("One or more incorrect links"))
     } else {
         log::info!("No broken links found");
         Ok(())
@@ -115,7 +109,7 @@ pub fn version_check(version: &str) -> Result<(), Error> {
             "mdbook-linkcheck isn't compatible with this version of mdbook ({} is not in the range {})",
             found, constraints
         );
-        Err(failure::err_msg(msg))
+        Err(Error::msg(msg))
     }
 }
 
@@ -157,13 +151,14 @@ fn report_errors(
 
 fn check_links(
     ctx: &RenderContext,
-    cache: &Cache,
+    cache: &mut Cache,
     cfg: &Config,
 ) -> Result<(Files<String>, ValidationOutcome), Error> {
     log::info!("Scanning book for links");
     let mut files = Files::new();
     let file_ids = crate::load_files_into_memory(&ctx.book, &mut files);
-    let (links, incomplete_links) = crate::extract_links(file_ids, &files);
+    let (links, incomplete_links) =
+        crate::extract_links(file_ids.clone(), &files);
     log::info!(
         "Found {} links ({} incomplete links)",
         links.len(),
@@ -171,8 +166,15 @@ fn check_links(
     );
     let src = dunce::canonicalize(ctx.source_dir())
         .context("Unable to resolve the source directory")?;
-    let outcome =
-        crate::validate(&links, &cfg, &src, &cache, &files, incomplete_links)?;
+    let outcome = crate::validate(
+        &links,
+        &cfg,
+        &src,
+        cache,
+        &files,
+        &file_ids,
+        incomplete_links,
+    )?;
 
     Ok((files, outcome))
 }
@@ -181,7 +183,7 @@ fn load_cache(filename: &Path) -> Cache {
     log::debug!("Loading cache from {}", filename.display());
 
     match File::open(filename) {
-        Ok(f) => match Cache::load(f) {
+        Ok(f) => match serde_json::from_reader(f) {
             Ok(cache) => cache,
             Err(e) => {
                 log::warn!("Unable to deserialize the cache: {}", e);
@@ -206,7 +208,7 @@ fn save_cache(filename: &Path, cache: &Cache) {
 
     match File::create(filename) {
         Ok(f) => {
-            if let Err(e) = cache.save(f) {
+            if let Err(e) = serde_json::to_writer(f, cache) {
                 log::warn!("Saving the cache as JSON failed: {}", e);
             }
         },

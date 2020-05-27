@@ -1,5 +1,5 @@
+use anyhow::{Context, Error};
 use codespan_reporting::term::termcolor::ColorChoice;
-use failure::{Error, ResultExt, SyncFailure};
 use mdbook::{renderer::RenderContext, MDBook};
 use std::{io, path::PathBuf};
 use structopt::StructOpt;
@@ -11,8 +11,8 @@ fn main() -> Result<(), Error> {
     // get a `RenderContext`, either from stdin (because we're used as a plugin)
     // or by instrumenting MDBook directly (in standalone mode).
     let ctx: RenderContext = if args.standalone {
-        let md = MDBook::load(dunce::canonicalize(&args.root)?)
-            .map_err(SyncFailure::new)?;
+        let md =
+            MDBook::load(dunce::canonicalize(&args.root)?).map_err(to_sync)?;
         let destination = md.build_dir_for("linkcheck");
         RenderContext::new(md.root, md.book, md.config, destination)
     } else {
@@ -55,6 +55,26 @@ fn parse_colour(raw: &str) -> Result<ColorChoice, Error> {
         "auto" => Ok(ColorChoice::Auto),
         "never" => Ok(ColorChoice::Never),
         "always" => Ok(ColorChoice::Always),
-        _ => Err(failure::err_msg("Unknown colour choice")),
+        _ => Err(Error::msg("Unknown colour choice")),
     }
+}
+
+fn to_sync(err: mdbook::errors::Error) -> Error {
+    use std::{
+        fmt::{self, Display, Formatter},
+        sync::Mutex,
+    };
+
+    #[derive(Debug)]
+    struct Synchronised(Mutex<mdbook::errors::Error>);
+
+    impl Display for Synchronised {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            self.0.lock().expect("lock was poisoned").fmt(f)
+        }
+    }
+
+    impl std::error::Error for Synchronised {}
+
+    Error::from(Synchronised(Mutex::new(err)))
 }

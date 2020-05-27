@@ -1,10 +1,11 @@
 #[macro_use]
 extern crate pretty_assertions;
 
+use anyhow::Error;
 use codespan::Files;
-use failure::Error;
+use linkcheck::validation::{Cache, Reason};
 use mdbook::{renderer::RenderContext, MDBook};
-use mdbook_linkcheck::{Cache, Config, HashedRegex, ValidationOutcome};
+use mdbook_linkcheck::{Config, HashedRegex, ValidationOutcome};
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -18,17 +19,17 @@ fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
 fn check_all_links_in_a_valid_book() {
     let root = test_dir().join("all-green");
     let expected_valid = &[
-        "./chapter_1.md",
+        "../chapter_1.md",
+        "../chapter_1.md#Subheading",
         "./chapter_1.html",
-        "nested/index.md",
-        "../chapter_1.md",
-        "/chapter_1.md",
-        "../chapter_1.md",
-        "/chapter_1.md",
+        "./chapter_1.md",
         "./sibling.md",
-        "sibling.md",
-        "https://www.google.com/",
+        "/chapter_1.md",
+        "/chapter_1.md#Subheading",
         "https://crates.io/crates/mdbook-linkcheck",
+        "https://www.google.com/",
+        "nested/index.md",
+        "sibling.md",
     ];
 
     let output = run_link_checker(&root).unwrap();
@@ -36,7 +37,7 @@ fn check_all_links_in_a_valid_book() {
     let valid_links: Vec<_> = output
         .valid_links
         .iter()
-        .map(|link| link.uri.to_string())
+        .map(|link| link.href.to_string())
         .collect();
     assert_same_links(expected_valid, valid_links);
     assert!(
@@ -55,6 +56,7 @@ fn correctly_find_broken_links() {
         "./chapter_1.md",
         "./second/directory.md",
         "http://this-doesnt-exist.com.au.nz.us/",
+        "sibling.md",
     ];
 
     let output = run_link_checker(&root).unwrap();
@@ -62,12 +64,42 @@ fn correctly_find_broken_links() {
     let broken: Vec<_> = output
         .invalid_links
         .iter()
-        .map(|invalid| invalid.link.uri.to_string())
+        .map(|invalid| invalid.link.href.to_string())
         .collect();
     assert_same_links(broken, expected);
     // we also have one incomplete link
     assert_eq!(output.incomplete_links.len(), 1);
     assert_eq!(output.incomplete_links[0].text, "incomplete link");
+}
+
+#[test]
+fn detect_when_a_linked_file_isnt_in_summary_md() {
+    let root = test_dir().join("broken-links");
+
+    let output = run_link_checker(&root).unwrap();
+
+    let broken_link = output
+        .invalid_links
+        .iter()
+        .find(|invalid| invalid.link.href == "sibling.md")
+        .unwrap();
+
+    assert!(is_specific_error::<mdbook_linkcheck::NotInSummary>(
+        &broken_link.reason
+    ));
+}
+
+fn is_specific_error<E>(reason: &Reason) -> bool
+where
+    E: std::error::Error + 'static,
+{
+    if let Reason::Io(io) = reason {
+        if let Some(inner) = io.get_ref() {
+            return inner.is::<E>();
+        }
+    }
+
+    false
 }
 
 fn assert_same_links<L, R, P, Q>(left: L, right: R)
@@ -88,11 +120,13 @@ where
 }
 
 fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
+    let _ = env_logger::builder()
+        .filter(Some("linkcheck"), log::LevelFilter::Debug)
+        .filter(Some("mdbook-linkcheck"), log::LevelFilter::Debug)
+        .is_test(true)
+        .try_init();
+
     assert!(root.exists());
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "mdbook_linkcheck=debug");
-    }
-    env_logger::try_init().ok();
 
     let mut md = MDBook::load(root).unwrap();
     let cfg = Config {
@@ -114,8 +148,11 @@ fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
 
     let file_ids =
         mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);
-    let (links, incomplete) = mdbook_linkcheck::extract_links(file_ids, &files);
+    let (links, incomplete) =
+        mdbook_linkcheck::extract_links(file_ids.clone(), &files);
 
-    let cache = Cache::default();
-    mdbook_linkcheck::validate(&links, &cfg, &src, &cache, &files, incomplete)
+    let mut cache = Cache::default();
+    mdbook_linkcheck::validate(
+        &links, &cfg, &src, &mut cache, &files, &file_ids, incomplete,
+    )
 }
