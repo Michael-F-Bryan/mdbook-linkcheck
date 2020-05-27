@@ -278,13 +278,13 @@ impl ValidationOutcome {
     ) {
         const WARNING_MESSAGE: &'static str = r#"When viewing a document directly from the file system and click on an
 absolute link (e.g. `/index.md`), the browser will try to navigate to
-`/index.md` on the current file system (i.e. the `clauses.md` file inside
+`/index.md` on the current file system (i.e. the `index.md` file inside
 `/` or `C:\`) instead of the `index.md` file at book's base directory as
 intended.
 
-This leads to a situation where everyhthing will seem to work fine when viewed
-using a web server (e.g. GitHub Pages or `mdbook serve`), but users viewing the
-book from the file system will encounter broken links.
+This warning helps avoid the situation where everything will seem to work
+fine when viewed using a web server (e.g. GitHub Pages or `mdbook serve`),
+but users viewing the book from the file system may encounter broken links.
 
 To ignore this warning, you can edit `book.toml` and set the warning policy to
 "ignore".
