@@ -28,7 +28,8 @@ fn check_all_links_in_a_valid_book() {
         "/chapter_1.md#Subheading",
         "https://crates.io/crates/mdbook-linkcheck",
         "https://www.google.com/",
-        "nested/index.md",
+        "nested/",
+        "nested/README.md",
         "sibling.md",
     ];
 
