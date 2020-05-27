@@ -34,7 +34,7 @@ pub use crate::{
     context::Context,
     hashed_regex::HashedRegex,
     links::{extract as extract_links, IncompleteLink},
-    validate::{validate, ValidationOutcome, NotInSummary},
+    validate::{validate, NotInSummary, ValidationOutcome},
 };
 
 use anyhow::{Context as _, Error};
@@ -222,6 +222,12 @@ mod tests {
 
     #[test]
     fn always_stay_compatible_with_mdbook_dependency() {
-        version_check(mdbook::MDBOOK_VERSION).unwrap();
+        let got = version_check(mdbook::MDBOOK_VERSION);
+
+        assert!(
+            got.is_ok(),
+            "Incompatible with mdbook dependency: {:#?}",
+            got.unwrap_err()
+        );
     }
 }

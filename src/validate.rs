@@ -192,32 +192,26 @@ impl ValidationOutcome {
         let mut diags = Vec::new();
 
         self.add_invalid_link_diagnostics(&mut diags);
-
-        match warning_policy {
-            WarningPolicy::Error => self.add_incomplete_link_diagnostics(
-                Severity::Error,
-                &mut diags,
-                files,
-            ),
-            WarningPolicy::Warn => self.add_incomplete_link_diagnostics(
-                Severity::Warning,
-                &mut diags,
-                files,
-            ),
-            WarningPolicy::Ignore => {},
-        }
+        self.add_incomplete_link_diagnostics(warning_policy, &mut diags, files);
 
         diags
     }
 
     fn add_incomplete_link_diagnostics(
         &self,
-        severity: Severity,
+        warning_policy: WarningPolicy,
         diags: &mut Vec<Diagnostic<FileId>>,
         files: &Files<String>,
     ) {
+        let severity = match warning_policy {
+            WarningPolicy::Error => Severity::Error,
+            WarningPolicy::Warn => Severity::Warning,
+            WarningPolicy::Ignore => return,
+        };
+
         for incomplete in &self.incomplete_links {
             let IncompleteLink { ref text, file } = incomplete;
+
             let span = resolve_incomplete_link_span(incomplete, files);
             let msg =
                 format!("Did you forget to define a URL for `{0}`?", text);
@@ -226,6 +220,7 @@ impl ValidationOutcome {
                 "hint: declare the link's URL. For example: `[{}]: http://example.com/`",
                 text
             );
+
             let diag = Diagnostic::new(severity)
                 .with_message("Potential incomplete link")
                 .with_labels(vec![label])
