@@ -327,10 +327,10 @@ https = ["accept: html/text", "authorization: Basic $TOKEN"]
 
     #[test]
     fn interpolation() {
-        std::env::set_var("TOKEN", "abcdefg123456");
+        std::env::set_var("SUPER_SECRET_TOKEN", "abcdefg123456");
         let header = HttpHeader {
             name: "Authorization".parse().unwrap(),
-            value: "Basic $TOKEN".into(),
+            value: "Basic $SUPER_SECRET_TOKEN".into(),
         };
         let should_be: HeaderValue = "Basic abcdefg123456".parse().unwrap();
 
