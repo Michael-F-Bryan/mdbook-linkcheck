@@ -145,11 +145,29 @@ fn merge_outcomes(
     outcomes: Outcomes,
     incomplete_links: Vec<IncompleteLink>,
 ) -> ValidationOutcome {
+    // Note: we want to sort all outcomes by file and then its location in that
+    // file.
+    //
+    // That way, when we emit diagnostics they'll be emitted for each file in
+    // the order that it is listed in `SUMMARY.md`, then individual diagnostics
+    // will be emitted from the start of each file to the end.
+    fn sorted<T, F>(mut items: Vec<T>, mut key: F) -> Vec<T>
+    where
+        F: FnMut(&T) -> &Link,
+    {
+        items.sort_by_key(|item| {
+            let link = key(item);
+            (link.file, link.span)
+        });
+        items
+    }
+    fn sorted_link(items: Vec<Link>) -> Vec<Link> { sorted(items, |link| link) }
+
     ValidationOutcome {
-        invalid_links: outcomes.invalid,
-        ignored: outcomes.ignored,
-        valid_links: outcomes.valid,
-        unknown_category: outcomes.unknown_category,
+        invalid_links: sorted(outcomes.invalid, |l| &l.link),
+        ignored: sorted_link(outcomes.ignored),
+        valid_links: sorted_link(outcomes.valid),
+        unknown_category: sorted_link(outcomes.unknown_category),
         incomplete_links,
     }
 }
