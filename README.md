@@ -71,9 +71,14 @@ follow-web-links = false
 # may help prevent linking to sensitive files (e.g. "../../../../etc/shadow")
 traverse-parent-directories = false
 
-# If necessary, you can exclude one or more web links from being checked with
-# a list of regular expressions
-exclude = [ "google\\.com" ]
+# If necessary, you can exclude one or more links from being checked with a
+# list of regular expressions. The regex will be applied to the link href (i.e.
+# the `./index.html` in `[some page](./index.html)`) so it can be used to
+# ignore both web and filesystem links.
+#
+# Hint: you can use TOML's raw strings (single quote) to avoid needing to
+# escape things twice.
+exclude = [ 'google\.com' ]
 
 # The User-Agent to use when sending web requests
 user-agent = "mdbook-linkcheck-0.4.0"

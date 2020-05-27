@@ -8,7 +8,6 @@ use linkcheck::{
 use reqwest::{Client, Url};
 use std::{
     path::Path,
-    str::FromStr,
     sync::{Mutex, MutexGuard},
 };
 
@@ -33,12 +32,10 @@ impl<'a> linkcheck::validation::Context for Context<'a> {
     }
 
     fn should_ignore(&self, link: &Link) -> bool {
-        http::Uri::from_str(&link.href).is_ok()
-            && self
-                .cfg
-                .exclude
-                .iter()
-                .any(|re| re.find(&link.href).is_some())
+        self.cfg
+            .exclude
+            .iter()
+            .any(|re| re.find(&link.href).is_some())
     }
 
     fn url_specific_headers(&self, url: &Url) -> HeaderMap {
