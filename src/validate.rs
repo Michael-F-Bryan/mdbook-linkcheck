@@ -267,10 +267,15 @@ fn most_specific_error_message(link: &InvalidLink) -> String {
                 .expect("Response::error_for_status() always contains a URL");
 
             match status.canonical_reason() {
-                Some(reason) => {
-                    format!("Server returned {} {} for {}", status.as_u16(), reason, url)
+                Some(reason) => format!(
+                    "Server returned {} {} for {}",
+                    status.as_u16(),
+                    reason,
+                    url
+                ),
+                None => {
+                    format!("Server returned {} for {}", status.as_u16(), url)
                 },
-                None => format!("Server returned {} for {}", status.as_u16(), url),
             }
         },
         Reason::Web(ref web) => web.to_string(),

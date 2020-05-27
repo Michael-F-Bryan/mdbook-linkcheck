@@ -715,9 +715,9 @@ checksum = "99e85c08494b21a9054e7fe1374a732aeadaff3980b6990b94bfd3a70f690005"
 
 [[package]]
 name = "linkcheck"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9ce9759e9001760c2109d2aa691a5e0557c875eece6f0db6d47fcc75d8c67bf"
+checksum = "1beb59b99f679ebec4947a84ec9727fc1eab53f3607c9b38d02f4b5e4debd824"
 dependencies = [
  "bytes",
  "codespan",

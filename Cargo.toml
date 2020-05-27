@@ -21,7 +21,7 @@ codespan-reporting = "0.9"
 dunce = "1.0.0"
 env_logger = "0.7"
 http = "0.2"
-linkcheck = "0.2.1"
+linkcheck = "0.2.2"
 log = "0.4"
 mdbook = { version = "0.3", default-features = false }
 regex = "1.0"
