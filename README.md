@@ -27,7 +27,7 @@ curl -LSfs https://japaric.github.io/trust/install.sh | \
 ```
 
 Next you'll need to update your `book.toml` to let `mdbook` know it needs to
-use the `mdbook-linkcheck` backend.
+use `mdbook-linkcheck` as a backend.
 
 ```toml
 [book]
@@ -98,7 +98,7 @@ warning-policy = "warn"
 [http-headers]
 # Any hyperlink that contains this regexp will be sent
 # the "Accept: text/html" header
-"crates\.io" = ["Accept: text/html"]
+'crates\.io' = ["Accept: text/html"]
 
 # mdbook-linkcheck will interpolate environment variables
 # into your header via $IDENT.
@@ -106,7 +106,7 @@ warning-policy = "warn"
 # If this is not what you want
 # you must escape the `$` symbol, like `\$TOKEN`. `\` itself can also be escaped
 # via `\\`.
-"website\.com" = ["Authorization: Basic $TOKEN"]
+'website\.com' = ["Authorization: Basic $TOKEN"]
 ```
 
 ## Continuous Integration
@@ -117,33 +117,27 @@ if you are already [using `mdbook` to generate documentation][mdbook-ci].
 For those using GitLab's built-in CI:
 
 ```yaml
-book:
+generate-book:
   stage: build
-  image : rust:latest
-  variables:
-    # makes sure the `~/.cargo` directory gets cached too
-    CARGO_HOME: $CI_PROJECT_DIR/_cargo
-  before_script:
-    - rustc --version --verbose && cargo --version --verbose
-    - export PATH=$CARGO_HOME/bin:$PATH
-    # Install mdbook and mdbook-linkcheck without optimisations, if not
-    # already installed
-    - command -v mdbook >/dev/null 2>&1 || cargo install --debug mdbook
-    - command -v mdbook-linkcheck >/dev/null 2>&1 || cargo install --debug mdbook-linkcheck
+  image:
+    name: michaelfbryan/mdbook-docker-image:latest
+    entrypoint: [""]
   script:
-    - mdbook build
+    - mdbook build $BOOK_DIR
   artifacts:
     paths:
-      - book
+      - $BOOK_DIR/book/html
+    # make sure GitLab doesn't accidentally keep every book you ever generate
+    # indefinitely
+    expire_in: 1 week
 
 pages:
   image: busybox:latest
   stage: deploy
   dependencies:
-    - book
+    - generate-book
   script:
-    - mkdir -p public
-    - cp -r book public
+    - cp -r $BOOK_DIR/book/html public
   artifacts:
     paths:
     - public
@@ -151,10 +145,11 @@ pages:
     - master
 ```
 
-[@danieltrautmann][danieltrautmann] has also created [a docker image][docker]
-that comes with `mdbook` and `mdbook-linkcheck` pre-installed.
+The [michaelfbryan/mdbook-docker-image][image] docker image is also available
+on Docker hub and comes with the latest version of `mdbook` and
+`mdbook-linkcheck` pre-installed.
 
 [releases]: https://github.com/Michael-F-Bryan/mdbook-linkcheck/releases
 [mdbook-ci]: https://rust-lang.github.io/mdBook/continuous-integration.html
-[danieltrautmann]: https://github.com/danieltrautmann
-[docker]: https://gitlab.com/danieltrautmann/docker-mdbook/container_registry
+[Michael-F-Bryan]: https://github.com/Michael-F-Bryan
+[image]: https://hub.docker.com/r/michaelfbryan/mdbook-docker-image
