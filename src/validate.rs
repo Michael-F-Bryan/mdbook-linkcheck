@@ -8,7 +8,7 @@ use linkcheck::{
 };
 use std::{
     collections::HashMap,
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     fmt::{self, Display, Formatter},
     path::{Component, Path, PathBuf},
     sync::Mutex,
@@ -85,8 +85,10 @@ fn ensure_included_in_book(
         let part_of_the_book = resolved_link.starts_with(&src_dir);
         let was_included_in_summary =
             file_names.iter().any(|name| resolved_link.ends_with(name));
+        let ext = resolved_link.extension();
+        let is_marhdown = ext == Some(OsStr::new("md"));
 
-        if !part_of_the_book || was_included_in_summary {
+        if !part_of_the_book || was_included_in_summary || !is_marhdown {
             Ok(())
         } else {
             use std::io::{Error, ErrorKind};
