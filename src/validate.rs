@@ -240,12 +240,42 @@ impl ValidationOutcome {
     ) {
         for broken_link in &self.invalid_links {
             let link = &broken_link.link;
+            let msg = most_specific_error_message(&broken_link);
             let diag = Diagnostic::error()
-                .with_message(broken_link.reason.to_string())
-                .with_labels(vec![Label::primary(link.file, link.span)
-                    .with_message(broken_link.reason.to_string())]);
+                .with_message(msg.clone())
+                .with_labels(vec![
+                    Label::primary(link.file, link.span).with_message(msg)
+                ]);
             diags.push(diag);
         }
+    }
+}
+
+fn most_specific_error_message(link: &InvalidLink) -> String {
+    if link.reason.file_not_found() {
+        return format!("File not found: {}", link.link.href);
+    }
+
+    match link.reason {
+        Reason::Io(ref io) => io.to_string(),
+        Reason::Web(ref web) if web.is_status() => {
+            let status = web.status().expect(
+                "Response::error_for_status() always contains a status code",
+            );
+            let url = web
+                .url()
+                .expect("Response::error_for_status() always contains a URL");
+
+            match status.canonical_reason() {
+                Some(reason) => {
+                    format!("Server returned {} {} for {}", status.as_u16(), reason, url)
+                },
+                None => format!("Server returned {} for {}", status.as_u16(), url),
+            }
+        },
+        Reason::Web(ref web) => web.to_string(),
+        // fall back to the Reason's Display impl
+        _ => link.reason.to_string(),
     }
 }
 
