@@ -10,7 +10,7 @@ use std::{
     collections::HashMap,
     ffi::OsString,
     fmt::{self, Display, Formatter},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Mutex,
 };
 use tokio::runtime::Runtime;
@@ -145,11 +145,29 @@ fn merge_outcomes(
     outcomes: Outcomes,
     incomplete_links: Vec<IncompleteLink>,
 ) -> ValidationOutcome {
+    // Note: we want to sort all outcomes by file and then its location in that
+    // file.
+    //
+    // That way, when we emit diagnostics they'll be emitted for each file in
+    // the order that it is listed in `SUMMARY.md`, then individual diagnostics
+    // will be emitted from the start of each file to the end.
+    fn sorted<T, F>(mut items: Vec<T>, mut key: F) -> Vec<T>
+    where
+        F: FnMut(&T) -> &Link,
+    {
+        items.sort_by_key(|item| {
+            let link = key(item);
+            (link.file, link.span)
+        });
+        items
+    }
+    fn sorted_link(items: Vec<Link>) -> Vec<Link> { sorted(items, |link| link) }
+
     ValidationOutcome {
-        invalid_links: outcomes.invalid,
-        ignored: outcomes.ignored,
-        valid_links: outcomes.valid,
-        unknown_category: outcomes.unknown_category,
+        invalid_links: sorted(outcomes.invalid, |l| &l.link),
+        ignored: sorted_link(outcomes.ignored),
+        valid_links: sorted_link(outcomes.valid),
+        unknown_category: sorted_link(outcomes.unknown_category),
         incomplete_links,
     }
 }
@@ -196,6 +214,7 @@ impl ValidationOutcome {
 
         self.add_invalid_link_diagnostics(&mut diags);
         self.add_incomplete_link_diagnostics(warning_policy, &mut diags, files);
+        self.warn_on_absolute_links(warning_policy, &mut diags, files);
 
         diags
     }
@@ -247,6 +266,130 @@ impl ValidationOutcome {
             diags.push(diag);
         }
     }
+
+    /// As shown in https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/33
+    /// absolute links are actually a bit of a foot gun when the document is
+    /// being read directly from the filesystem.
+    fn warn_on_absolute_links(
+        &self,
+        warning_policy: WarningPolicy,
+        diags: &mut Vec<Diagnostic<FileId>>,
+        files: &Files<String>,
+    ) {
+        const WARNING_MESSAGE: &'static str = r#"When viewing a document directly from the file system and click on an
+absolute link (e.g. `/index.md`), the browser will try to navigate to
+`/index.md` on the current file system (i.e. the `index.md` file inside
+`/` or `C:\`) instead of the `index.md` file at book's base directory as
+intended.
+
+This warning helps avoid the situation where everything will seem to work
+fine when viewed using a web server (e.g. GitHub Pages or `mdbook serve`),
+but users viewing the book from the file system may encounter broken links.
+
+To ignore this warning, you can edit `book.toml` and set the warning policy to
+"ignore".
+
+    [output.linkcheck]
+    warning-policy = "ignore"
+
+For more details, see https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/33
+"#;
+        let severity = match warning_policy {
+            WarningPolicy::Error => Severity::Error,
+            WarningPolicy::Warn => Severity::Warning,
+            WarningPolicy::Ignore => return,
+        };
+
+        let absolute_links = self
+            .valid_links
+            .iter()
+            .filter(|link| link.href.starts_with("/"));
+
+        let mut reasoning_emitted = false;
+
+        for link in absolute_links {
+            let mut notes = Vec::new();
+
+            if !reasoning_emitted {
+                notes.push(String::from(WARNING_MESSAGE));
+                reasoning_emitted = true;
+            }
+
+            if let Some(suggested_change) =
+                relative_path_to_file(files.name(link.file), &link.href)
+            {
+                notes.push(format!(
+                    "Suggestion: change the link to \"{}\"",
+                    suggested_change
+                ));
+            }
+
+            let diag = Diagnostic::new(severity)
+                .with_message("Absolute link should be made relative")
+                .with_notes(notes)
+                .with_labels(vec![Label::primary(link.file, link.span)
+                    .with_message("Absolute link should be made relative")]);
+
+            diags.push(diag);
+        }
+    }
+}
+
+// Path diffing, copied from https://crates.io/crates/pathdiff with some tweaks
+fn relative_path_to_file<S, D>(start: S, destination: D) -> Option<String>
+where
+    S: AsRef<Path>,
+    D: AsRef<Path>,
+{
+    let destination = destination.as_ref();
+    let start = start.as_ref();
+    log::debug!(
+        "Trying to find the relative path from \"{}\" to \"{}\"",
+        start.display(),
+        destination.display()
+    );
+
+    let start = start.parent()?;
+    let destination_name = destination.file_name()?;
+    let destination = destination.parent()?;
+
+    let mut ita = destination.components().skip(1);
+    let mut itb = start.components();
+
+    let mut comps: Vec<Component> = vec![];
+
+    loop {
+        match (ita.next(), itb.next()) {
+            (None, None) => break,
+            (Some(a), None) => {
+                comps.push(a);
+                comps.extend(ita.by_ref());
+                break;
+            },
+            (None, _) => comps.push(Component::ParentDir),
+            (Some(a), Some(b)) if comps.is_empty() && a == b => (),
+            (Some(a), Some(b)) if b == Component::CurDir => comps.push(a),
+            (Some(_), Some(b)) if b == Component::ParentDir => return None,
+            (Some(a), Some(_)) => {
+                comps.push(Component::ParentDir);
+                for _ in itb {
+                    comps.push(Component::ParentDir);
+                }
+                comps.push(a);
+                comps.extend(ita.by_ref());
+                break;
+            },
+        }
+    }
+
+    let path: PathBuf = comps
+        .iter()
+        .map(|c| c.as_os_str())
+        .chain(std::iter::once(destination_name))
+        .collect();
+
+    // Note: URLs always use forward slashes
+    Some(path.display().to_string().replace('\\', "/"))
 }
 
 fn most_specific_error_message(link: &InvalidLink) -> String {
@@ -296,5 +439,24 @@ fn resolve_incomplete_link_span(
     match src.find(&needle).map(|ix| ix as u32) {
         Some(start_ix) => Span::new(start_ix, start_ix + needle.len() as u32),
         None => files.source_span(incomplete.file),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_some_simple_relative_paths() {
+        let inputs = vec![
+            ("index.md", "/other.md", "other.md"),
+            ("index.md", "/nested/other.md", "nested/other.md"),
+            ("nested/index.md", "/other.md", "../other.md"),
+        ];
+
+        for (start, destination, should_be) in inputs {
+            let got = relative_path_to_file(start, destination).unwrap();
+            assert_eq!(got, should_be);
+        }
     }
 }

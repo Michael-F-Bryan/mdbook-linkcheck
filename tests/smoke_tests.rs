@@ -2,10 +2,10 @@
 extern crate pretty_assertions;
 
 use anyhow::Error;
-use codespan::Files;
+use codespan::{FileId, Files};
 use linkcheck::validation::{Cache, Reason};
 use mdbook::{renderer::RenderContext, MDBook};
-use mdbook_linkcheck::{Config, HashedRegex, ValidationOutcome};
+use mdbook_linkcheck::{Config, HashedRegex, ValidationOutcome, WarningPolicy};
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -90,6 +90,37 @@ fn detect_when_a_linked_file_isnt_in_summary_md() {
     ));
 }
 
+#[test]
+fn emit_valid_suggestions_on_absolute_links() {
+    let root = test_dir().join("absolute-links");
+
+    TestRun::new(root)
+        .after_validation(|files, outcome, _| {
+            let diags =
+                outcome.generate_diagnostics(files, WarningPolicy::Error);
+
+            let suggestions = vec![
+                "\"chapter_1.md\"",
+                "\"nested/README.md\"",
+                "\"../chapter_1.md\"",
+            ];
+            assert_eq!(suggestions.len(), diags.len());
+
+            for (diag, suggestion) in
+                diags.into_iter().zip(suggestions.into_iter())
+            {
+                assert!(
+                    diag.notes.iter().any(|note| note.contains(suggestion)),
+                    "It should have suggested {} for {:?}",
+                    suggestion,
+                    diag
+                );
+            }
+        })
+        .execute()
+        .unwrap();
+}
+
 fn is_specific_error<E>(reason: &Reason) -> bool
 where
     E: std::error::Error + 'static,
@@ -120,40 +151,85 @@ where
     assert_eq!(left, right);
 }
 
+struct TestRun {
+    config: Config,
+    root: PathBuf,
+    after_validation:
+        Box<dyn Fn(&Files<String>, &ValidationOutcome, &Vec<FileId>)>,
+}
+
+impl TestRun {
+    fn new<P: Into<PathBuf>>(root: P) -> Self {
+        TestRun {
+            root: root.into(),
+            config: Config {
+                follow_web_links: true,
+                traverse_parent_directories: false,
+                exclude: vec![r"forbidden\.com".parse().unwrap()],
+                http_headers: HashMap::from_iter(vec![(
+                    HashedRegex::new(r"crates\.io").unwrap(),
+                    vec!["Accept: text/html".try_into().unwrap()],
+                )]),
+                ..Default::default()
+            },
+            after_validation: Box::new(|_, _, _| {}),
+        }
+    }
+
+    fn after_validation<F>(self, cb: F) -> Self
+    where
+        F: Fn(&Files<String>, &ValidationOutcome, &Vec<FileId>) + 'static,
+    {
+        let after_validation = Box::new(cb);
+        TestRun {
+            after_validation,
+            ..self
+        }
+    }
+
+    fn initialise_logging(&self) {
+        let _ = env_logger::builder()
+            .filter(Some("linkcheck"), log::LevelFilter::Debug)
+            .filter(Some("mdbook_linkcheck"), log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init();
+    }
+
+    fn execute(self) -> Result<ValidationOutcome, Error> {
+        self.initialise_logging();
+        assert!(self.root.exists());
+
+        let mut md = MDBook::load(&self.root).unwrap();
+        md.config.set("output.linkcheck", &self.config).unwrap();
+
+        let ctx =
+            RenderContext::new(&self.root, md.book, md.config, &self.root);
+
+        let mut files = Files::new();
+        let src = dunce::canonicalize(ctx.source_dir()).unwrap();
+
+        let file_ids =
+            mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);
+        let (links, incomplete) =
+            mdbook_linkcheck::extract_links(file_ids.clone(), &files);
+
+        let mut cache = Cache::default();
+        let outcome = mdbook_linkcheck::validate(
+            &links,
+            &self.config,
+            &src,
+            &mut cache,
+            &files,
+            &file_ids,
+            incomplete,
+        )?;
+
+        (self.after_validation)(&files, &outcome, &file_ids);
+
+        Ok(outcome)
+    }
+}
+
 fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
-    let _ = env_logger::builder()
-        .filter(Some("linkcheck"), log::LevelFilter::Debug)
-        .filter(Some("mdbook-linkcheck"), log::LevelFilter::Debug)
-        .is_test(true)
-        .try_init();
-
-    assert!(root.exists());
-
-    let mut md = MDBook::load(root).unwrap();
-    let cfg = Config {
-        follow_web_links: true,
-        traverse_parent_directories: false,
-        exclude: vec![r"forbidden\.com".parse().unwrap()],
-        http_headers: HashMap::from_iter(vec![(
-            HashedRegex::new(r"crates\.io").unwrap(),
-            vec!["Accept: text/html".try_into().unwrap()],
-        )]),
-        ..Default::default()
-    };
-    md.config.set("output.linkcheck", &cfg).unwrap();
-
-    let ctx = RenderContext::new(root, md.book, md.config, root.to_path_buf());
-
-    let mut files = Files::new();
-    let src = dunce::canonicalize(ctx.source_dir()).unwrap();
-
-    let file_ids =
-        mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);
-    let (links, incomplete) =
-        mdbook_linkcheck::extract_links(file_ids.clone(), &files);
-
-    let mut cache = Cache::default();
-    mdbook_linkcheck::validate(
-        &links, &cfg, &src, &mut cache, &files, &file_ids, incomplete,
-    )
+    TestRun::new(root).execute()
 }
