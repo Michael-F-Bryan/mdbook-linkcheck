@@ -25,13 +25,15 @@ pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
 
 mod config;
 mod context;
+mod error_handling;
 mod hashed_regex;
 mod links;
 mod validate;
 
 pub use crate::{
-    config::{Config, WarningPolicy},
+    config::Config,
     context::Context,
+    error_handling::ErrorHandling,
     hashed_regex::HashedRegex,
     links::{extract as extract_links, IncompleteLink},
     validate::{validate, NotInSummary, ValidationOutcome},
@@ -71,7 +73,7 @@ pub fn run(
     }
 
     let (files, outcome) = check_links(&ctx, &mut cache, &cfg)?;
-    let diags = outcome.generate_diagnostics(&files, cfg.warning_policy);
+    let diags = outcome.generate_diagnostics(&files, &cfg.error_handling);
     report_errors(&files, &diags, colour)?;
 
     save_cache(cache_file, &cache);

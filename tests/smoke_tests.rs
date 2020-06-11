@@ -5,7 +5,7 @@ use anyhow::Error;
 use codespan::{FileId, Files};
 use linkcheck::validation::{Cache, Reason};
 use mdbook::{renderer::RenderContext, MDBook};
-use mdbook_linkcheck::{Config, HashedRegex, ValidationOutcome, WarningPolicy};
+use mdbook_linkcheck::{Config, ErrorHandling, HashedRegex, ValidationOutcome};
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -93,11 +93,11 @@ fn detect_when_a_linked_file_isnt_in_summary_md() {
 #[test]
 fn emit_valid_suggestions_on_absolute_links() {
     let root = test_dir().join("absolute-links");
+    let error_handling = ErrorHandling::default();
 
     TestRun::new(root)
-        .after_validation(|files, outcome, _| {
-            let diags =
-                outcome.generate_diagnostics(files, WarningPolicy::Error);
+        .after_validation(move |files, outcome, _| {
+            let diags = outcome.generate_diagnostics(files, &error_handling);
 
             let suggestions = vec![
                 "\"chapter_1.md\"",

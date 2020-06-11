@@ -1,4 +1,4 @@
-use crate::{Config, Context, IncompleteLink, WarningPolicy};
+use crate::{Config, Context, ErrorHandling, IncompleteLink};
 use anyhow::Error;
 use codespan::{FileId, Files, Span};
 use codespan_reporting::diagnostic::{Diagnostic, Label, Severity};
@@ -43,7 +43,7 @@ fn lc_validate(
         .set_default_file("README.md")
         .set_custom_validation(ensure_included_in_book(src_dir, file_names));
 
-    let interpolated_headers = cfg.interpolate_headers(cfg.warning_policy);
+    let interpolated_headers = cfg.interpolate_headers(&cfg.error_handling);
 
     let ctx = Context {
         client: cfg.client(),
@@ -213,62 +213,42 @@ impl ValidationOutcome {
     pub fn generate_diagnostics(
         &self,
         files: &Files<String>,
-        warning_policy: WarningPolicy,
+        error_handling: &ErrorHandling,
     ) -> Vec<Diagnostic<FileId>> {
         let mut diags = Vec::new();
 
-        self.add_invalid_link_diagnostics(&mut diags);
-        self.add_incomplete_link_diagnostics(warning_policy, &mut diags, files);
-        self.warn_on_absolute_links(warning_policy, &mut diags, files);
+        self.add_invalid_link_diagnostics(error_handling, &mut diags);
+        self.add_incomplete_link_diagnostics(error_handling, &mut diags, files);
+        self.warn_on_absolute_links(error_handling, &mut diags, files);
 
         diags
     }
 
     fn add_incomplete_link_diagnostics(
         &self,
-        warning_policy: WarningPolicy,
+        error_handling: &ErrorHandling,
         diags: &mut Vec<Diagnostic<FileId>>,
         files: &Files<String>,
     ) {
-        let severity = match warning_policy {
-            WarningPolicy::Error => Severity::Error,
-            WarningPolicy::Warn => Severity::Warning,
-            WarningPolicy::Ignore => return,
-        };
-
         for incomplete in &self.incomplete_links {
-            let IncompleteLink { ref text, file } = incomplete;
-
             let span = resolve_incomplete_link_span(incomplete, files);
-            let msg =
-                format!("Did you forget to define a URL for `{0}`?", text);
-            let label = Label::primary(*file, span).with_message(msg);
-            let note = format!(
-                "hint: declare the link's URL. For example: `[{}]: http://example.com/`",
-                text
-            );
-
-            let diag = Diagnostic::new(severity)
-                .with_message("Potential incomplete link")
-                .with_labels(vec![label])
-                .with_notes(vec![note]);
-            diags.push(diag)
+            if let Some(diag) =
+                error_handling.on_incomplete_link(&incomplete, span)
+            {
+                diags.push(diag);
+            }
         }
     }
 
     fn add_invalid_link_diagnostics(
         &self,
+        error_handling: &ErrorHandling,
         diags: &mut Vec<Diagnostic<FileId>>,
     ) {
         for broken_link in &self.invalid_links {
-            let link = &broken_link.link;
-            let msg = most_specific_error_message(&broken_link);
-            let diag = Diagnostic::error()
-                .with_message(msg.clone())
-                .with_labels(vec![
-                    Label::primary(link.file, link.span).with_message(msg)
-                ]);
-            diags.push(diag);
+            if let Some(diag) = error_handling.on_invalid_link(broken_link) {
+                diags.push(diag);
+            }
         }
     }
 
@@ -277,34 +257,10 @@ impl ValidationOutcome {
     /// being read directly from the filesystem.
     fn warn_on_absolute_links(
         &self,
-        warning_policy: WarningPolicy,
+        error_handling: &ErrorHandling,
         diags: &mut Vec<Diagnostic<FileId>>,
         files: &Files<String>,
     ) {
-        const WARNING_MESSAGE: &'static str = r#"When viewing a document directly from the file system and click on an
-absolute link (e.g. `/index.md`), the browser will try to navigate to
-`/index.md` on the current file system (i.e. the `index.md` file inside
-`/` or `C:\`) instead of the `index.md` file at book's base directory as
-intended.
-
-This warning helps avoid the situation where everything will seem to work
-fine when viewed using a web server (e.g. GitHub Pages or `mdbook serve`),
-but users viewing the book from the file system may encounter broken links.
-
-To ignore this warning, you can edit `book.toml` and set the warning policy to
-"ignore".
-
-    [output.linkcheck]
-    warning-policy = "ignore"
-
-For more details, see https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/33
-"#;
-        let severity = match warning_policy {
-            WarningPolicy::Error => Severity::Error,
-            WarningPolicy::Warn => Severity::Warning,
-            WarningPolicy::Ignore => return,
-        };
-
         let absolute_links = self
             .valid_links
             .iter()
@@ -313,120 +269,9 @@ For more details, see https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues
         let mut reasoning_emitted = false;
 
         for link in absolute_links {
-            let mut notes = Vec::new();
-
-            if !reasoning_emitted {
-                notes.push(String::from(WARNING_MESSAGE));
-                reasoning_emitted = true;
-            }
-
-            if let Some(suggested_change) =
-                relative_path_to_file(files.name(link.file), &link.href)
-            {
-                notes.push(format!(
-                    "Suggestion: change the link to \"{}\"",
-                    suggested_change
-                ));
-            }
-
-            let diag = Diagnostic::new(severity)
-                .with_message("Absolute link should be made relative")
-                .with_notes(notes)
-                .with_labels(vec![Label::primary(link.file, link.span)
-                    .with_message("Absolute link should be made relative")]);
-
-            diags.push(diag);
+            error_handling.on_absolute_link(link, !reasoning_emitted, files);
+            reasoning_emitted = true;
         }
-    }
-}
-
-// Path diffing, copied from https://crates.io/crates/pathdiff with some tweaks
-fn relative_path_to_file<S, D>(start: S, destination: D) -> Option<String>
-where
-    S: AsRef<Path>,
-    D: AsRef<Path>,
-{
-    let destination = destination.as_ref();
-    let start = start.as_ref();
-    log::debug!(
-        "Trying to find the relative path from \"{}\" to \"{}\"",
-        start.display(),
-        destination.display()
-    );
-
-    let start = start.parent()?;
-    let destination_name = destination.file_name()?;
-    let destination = destination.parent()?;
-
-    let mut ita = destination.components().skip(1);
-    let mut itb = start.components();
-
-    let mut comps: Vec<Component> = vec![];
-
-    loop {
-        match (ita.next(), itb.next()) {
-            (None, None) => break,
-            (Some(a), None) => {
-                comps.push(a);
-                comps.extend(ita.by_ref());
-                break;
-            },
-            (None, _) => comps.push(Component::ParentDir),
-            (Some(a), Some(b)) if comps.is_empty() && a == b => (),
-            (Some(a), Some(b)) if b == Component::CurDir => comps.push(a),
-            (Some(_), Some(b)) if b == Component::ParentDir => return None,
-            (Some(a), Some(_)) => {
-                comps.push(Component::ParentDir);
-                for _ in itb {
-                    comps.push(Component::ParentDir);
-                }
-                comps.push(a);
-                comps.extend(ita.by_ref());
-                break;
-            },
-        }
-    }
-
-    let path: PathBuf = comps
-        .iter()
-        .map(|c| c.as_os_str())
-        .chain(std::iter::once(destination_name))
-        .collect();
-
-    // Note: URLs always use forward slashes
-    Some(path.display().to_string().replace('\\', "/"))
-}
-
-fn most_specific_error_message(link: &InvalidLink) -> String {
-    if link.reason.file_not_found() {
-        return format!("File not found: {}", link.link.href);
-    }
-
-    match link.reason {
-        Reason::Io(ref io) => io.to_string(),
-        Reason::Web(ref web) if web.is_status() => {
-            let status = web.status().expect(
-                "Response::error_for_status() always contains a status code",
-            );
-            let url = web
-                .url()
-                .expect("Response::error_for_status() always contains a URL");
-
-            match status.canonical_reason() {
-                Some(reason) => format!(
-                    "Server returned {} {} for {}",
-                    status.as_u16(),
-                    reason,
-                    url
-                ),
-                None => {
-                    format!("Server returned {} for {}", status.as_u16(), url)
-                },
-            }
-        },
-        Reason::Web(ref web) => web.to_string(),
-        // fall back to the Reason's Display impl
-        _ => link.reason.to_string(),
     }
 }
 
@@ -444,24 +289,5 @@ fn resolve_incomplete_link_span(
     match src.find(&needle).map(|ix| ix as u32) {
         Some(start_ix) => Span::new(start_ix, start_ix + needle.len() as u32),
         None => files.source_span(incomplete.file),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn check_some_simple_relative_paths() {
-        let inputs = vec![
-            ("index.md", "/other.md", "other.md"),
-            ("index.md", "/nested/other.md", "nested/other.md"),
-            ("nested/index.md", "/other.md", "../other.md"),
-        ];
-
-        for (start, destination, should_be) in inputs {
-            let got = relative_path_to_file(start, destination).unwrap();
-            assert_eq!(got, should_be);
-        }
     }
 }

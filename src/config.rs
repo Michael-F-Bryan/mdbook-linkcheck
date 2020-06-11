@@ -1,4 +1,4 @@
-use crate::hashed_regex::HashedRegex;
+use crate::{error_handling::ErrorHandling, hashed_regex::HashedRegex};
 use anyhow::Error;
 use http::header::{HeaderName, HeaderValue};
 use log::Level;
@@ -32,13 +32,13 @@ pub struct Config {
     /// The number of seconds a cached result is valid for.
     #[serde(default = "default_cache_timeout")]
     pub cache_timeout: u64,
-    /// The policy to use when warnings are encountered.
-    #[serde(default)]
-    pub warning_policy: WarningPolicy,
     /// The map of regexes representing sets of web sites and
     /// the list of HTTP headers that must be sent to matching sites.
     #[serde(default)]
     pub http_headers: HashMap<HashedRegex, Vec<HttpHeader>>,
+    /// How should non-valid links be handled?
+    #[serde(default)]
+    pub error_handling: ErrorHandling,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -83,10 +83,9 @@ impl Config {
 
     pub(crate) fn interpolate_headers(
         &self,
-        warning_policy: WarningPolicy,
+        error_handling: &ErrorHandling,
     ) -> Vec<(HashedRegex, Vec<(HeaderName, HeaderValue)>)> {
         let mut all_headers = Vec::new();
-        let log_level = warning_policy.to_log_level();
 
         for (pattern, headers) in &self.http_headers {
             let mut interpolated = Vec::new();
@@ -103,12 +102,8 @@ impl Config {
                         //
                         // If it was important, the user would notice a "broken"
                         // link and read back through the logs.
-                        log::log!(
-                            log_level,
-                            "Unable to interpolate \"{}\" because {}",
-                            header,
-                            e
-                        );
+                        error_handling
+                            .on_header_interpolation_error(header, &e);
                     },
                 }
             }
@@ -128,8 +123,8 @@ impl Default for Config {
             exclude: Vec::new(),
             user_agent: default_user_agent(),
             http_headers: HashMap::new(),
-            warning_policy: WarningPolicy::Warn,
             cache_timeout: Config::DEFAULT_CACHE_TIMEOUT.as_secs(),
+            error_handling: ErrorHandling::default(),
         }
     }
 }
@@ -267,32 +262,6 @@ impl Display for InterpolationError {
     }
 }
 
-/// How should warnings be treated?
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum WarningPolicy {
-    /// Silently ignore them.
-    Ignore,
-    /// Warn the user, but don't fail the linkcheck.
-    Warn,
-    /// Treat warnings as errors.
-    Error,
-}
-
-impl WarningPolicy {
-    pub(crate) fn to_log_level(self) -> Level {
-        match self {
-            WarningPolicy::Error => Level::Error,
-            WarningPolicy::Warn => Level::Warn,
-            WarningPolicy::Ignore => Level::Debug,
-        }
-    }
-}
-
-impl Default for WarningPolicy {
-    fn default() -> WarningPolicy { WarningPolicy::Warn }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,7 +273,6 @@ traverse-parent-directories = true
 exclude = ["google\\.com"]
 user-agent = "Internet Explorer"
 cache-timeout = 3600
-warning-policy = "error"
 
 [http-headers]
 https = ["accept: html/text", "authorization: Basic $TOKEN"]
@@ -316,7 +284,6 @@ https = ["accept: html/text", "authorization: Basic $TOKEN"]
 
         let should_be = Config {
             follow_web_links: true,
-            warning_policy: WarningPolicy::Error,
             traverse_parent_directories: true,
             exclude: vec![HashedRegex::new(r"google\.com").unwrap()],
             user_agent: String::from("Internet Explorer"),
@@ -328,6 +295,7 @@ https = ["accept: html/text", "authorization: Basic $TOKEN"]
                 ],
             )]),
             cache_timeout: 3600,
+            error_handling: ErrorHandling::default(),
         };
 
         let got: Config = toml::from_str(CONFIG).unwrap();
