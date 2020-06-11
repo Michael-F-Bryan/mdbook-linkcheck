@@ -810,6 +810,7 @@ dependencies = [
  "dunce",
  "env_logger 0.7.1",
  "http",
+ "lazy_static",
  "linkcheck",
  "log",
  "mdbook",

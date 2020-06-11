@@ -2,6 +2,7 @@ use crate::hashed_regex::HashedRegex;
 use anyhow::Error;
 use http::header::{HeaderName, HeaderValue};
 use log::Level;
+use regex::{Captures, Regex, Replacer};
 use reqwest::Client;
 use serde_derive::{Deserialize, Serialize};
 use std::{
@@ -49,7 +50,7 @@ pub struct HttpHeader {
 
 impl HttpHeader {
     pub(crate) fn interpolate(&self) -> Result<HeaderValue, Error> {
-        interpolate_env(&self.value)
+        interpolate_env(&self.value, |var| std::env::var(var).ok())
     }
 }
 
@@ -179,70 +180,91 @@ impl Into<String> for HttpHeader {
 fn default_cache_timeout() -> u64 { Config::DEFAULT_CACHE_TIMEOUT.as_secs() }
 fn default_user_agent() -> String { Config::DEFAULT_USER_AGENT.to_string() }
 
-fn interpolate_env(value: &str) -> Result<HeaderValue, Error> {
-    use std::{iter::Peekable, str::CharIndices};
+lazy_static::lazy_static! {
+    static ref INTERPOLATED_VARIABLE: Regex = Regex::new(r"(?x)
+        (?P<escape>\\)?
+        \$
+        (?P<variable>[\w_][\w_\d]*)
+    ").unwrap();
+}
 
-    fn is_ident(ch: char) -> bool { ch.is_ascii_alphanumeric() || ch == '_' }
+fn interpolate_env<F>(value: &str, get_var: F) -> Result<HeaderValue, Error>
+where
+    F: FnMut(&str) -> Option<String>,
+{
+    let mut failed_replacements: Vec<String> = Vec::new();
 
-    fn ident_end(start: usize, iter: &mut Peekable<CharIndices>) -> usize {
-        let mut end = start;
-        while let Some(&(i, ch)) = iter.peek() {
-            if !is_ident(ch) {
-                return i;
-            }
-            end = i + ch.len_utf8();
-            iter.next();
-        }
+    let interpolated = INTERPOLATED_VARIABLE
+        .replace_all(value, replacer(&mut failed_replacements, get_var));
 
-        end
+    if failed_replacements.is_empty() {
+        interpolated.parse().map_err(Error::from)
+    } else {
+        Err(Error::from(InterpolationError {
+            variable_names: failed_replacements,
+            original_string: value.to_string(),
+        }))
     }
+}
 
-    let mut res = String::with_capacity(value.len());
-    let mut backslash = false;
-    let mut iter = value.char_indices().peekable();
+/// Gets a `Replacer` which will try to replace a variable with the result
+/// from the `get_var()` function, recording any errors that happen.
+fn replacer<'a, V>(
+    failed_replacements: &'a mut Vec<String>,
+    mut get_var: V,
+) -> impl Replacer + 'a
+where
+    V: FnMut(&str) -> Option<String> + 'a,
+{
+    move |caps: &Captures<'_>| {
+        if caps.name("escape").is_none() {
+            let variable = &caps["variable"];
 
-    while let Some((i, ch)) = iter.next() {
-        if backslash {
-            match ch {
-                '$' | '\\' => res.push(ch),
-                _ => {
-                    res.push('\\');
-                    res.push(ch);
+            match get_var(variable) {
+                Some(value) => return value,
+                None => {
+                    failed_replacements.push(variable.to_string());
                 },
             }
+        }
 
-            backslash = false;
+        // the dollar sign was escaped (e.g. "\$foo") or we couldn't get
+        // the environment variable
+        caps[0].to_string()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct InterpolationError {
+    pub variable_names: Vec<String>,
+    pub original_string: String,
+}
+
+impl std::error::Error for InterpolationError {}
+
+impl Display for InterpolationError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.variable_names.len() == 1 {
+            write!(
+                f,
+                "Unable to interpolate `${}` into \"{}\"",
+                &self.variable_names[0], self.original_string
+            )
         } else {
-            match ch {
-                '\\' => backslash = true,
-                '$' => {
-                    iter.next();
-                    let start = i + 1;
-                    let end = ident_end(start, &mut iter);
-                    let name = &value[start..end];
+            let formatted_names: Vec<_> = self
+                .variable_names
+                .iter()
+                .map(|v| format!("`${}`", v))
+                .collect();
 
-                    match std::env::var(name) {
-                        Ok(env) => res.push_str(&env),
-                        Err(e) => {
-                            return Err(Error::msg(format!(
-                                "Failed to retrieve `{}` env var: {}",
-                                name, e
-                            )))
-                        },
-                    }
-                },
-
-                _ => res.push(ch),
-            }
+            write!(
+                f,
+                "Unable to interpolate `${}` into \"{}\"",
+                formatted_names.join(", "),
+                self.original_string
+            )
         }
     }
-
-    // trailing backslash
-    if backslash {
-        res.push('\\');
-    }
-
-    Ok(res.parse()?)
 }
 
 /// How should warnings be treated?
@@ -337,5 +359,41 @@ https = ["accept: html/text", "authorization: Basic $TOKEN"]
         let got = header.interpolate().unwrap();
 
         assert_eq!(got, should_be);
+    }
+
+    #[test]
+    fn interplate_a_single_variable() {
+        let text = "Hello, $name";
+
+        let got = interpolate_env(text, |name| {
+            if name == "name" {
+                Some(String::from("World!"))
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+        assert_eq!(got, "Hello, World!");
+    }
+
+    #[test]
+    fn you_can_skip_interpolation_by_escaping_the_dollar_sign() {
+        let text = r"Hello, \$name";
+
+        let got = interpolate_env(text, |_| unreachable!()).unwrap();
+
+        assert_eq!(got, text);
+    }
+
+    #[test]
+    fn not_having_the_requested_variable_is_an_error() {
+        let text = r"Hello, $name";
+        let never_works = |_name: &str| None;
+
+        let got = interpolate_env(text, never_works).unwrap_err();
+
+        let inner = got.downcast::<InterpolationError>().unwrap();
+        assert_eq!(inner.variable_names, vec![String::from("name")]);
     }
 }
