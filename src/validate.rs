@@ -269,8 +269,12 @@ impl ValidationOutcome {
         let mut reasoning_emitted = false;
 
         for link in absolute_links {
-            error_handling.on_absolute_link(link, !reasoning_emitted, files);
-            reasoning_emitted = true;
+            if let Some(diag) =
+                error_handling.on_absolute_link(link, !reasoning_emitted, files)
+            {
+                diags.push(diag);
+                reasoning_emitted = true;
+            }
         }
     }
 }
