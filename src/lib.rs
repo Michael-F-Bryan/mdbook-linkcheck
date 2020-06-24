@@ -21,7 +21,7 @@
 extern crate pretty_assertions;
 
 /// A semver range specifying which versions of `mdbook` this crate supports.
-pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
+pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.4.0";
 
 mod config;
 mod context;
