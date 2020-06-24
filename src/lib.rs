@@ -21,7 +21,7 @@
 extern crate pretty_assertions;
 
 /// A semver range specifying which versions of `mdbook` this crate supports.
-pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.3.0";
+pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.4.0";
 
 mod config;
 mod context;
@@ -123,11 +123,13 @@ pub fn load_files_into_memory(
     for item in book.iter() {
         match item {
             BookItem::Chapter(ref ch) => {
-                let id =
-                    dest.add(ch.path.display().to_string(), ch.content.clone());
-                ids.push(id);
-            },
-            BookItem::Separator => {},
+                if let Some(ref path) = ch.path {
+                    let id = dest
+                        .add(path.display().to_string(), ch.content.clone());
+                    ids.push(id);
+                }
+            }
+            BookItem::Separator | BookItem::PartTitle(_) => {}
         }
     }
 
@@ -188,12 +190,12 @@ fn load_cache(filename: &Path) -> Cache {
             Err(e) => {
                 log::warn!("Unable to deserialize the cache: {}", e);
                 Cache::default()
-            },
+            }
         },
         Err(e) => {
             log::debug!("Unable to open the cache: {}", e);
             Cache::default()
-        },
+        }
     }
 }
 
@@ -211,7 +213,7 @@ fn save_cache(filename: &Path, cache: &Cache) {
             if let Err(e) = serde_json::to_writer(f, cache) {
                 log::warn!("Saving the cache as JSON failed: {}", e);
             }
-        },
+        }
         Err(e) => log::warn!("Unable to create the cache file: {}", e),
     }
 }
