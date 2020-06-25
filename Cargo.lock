@@ -674,6 +674,7 @@ dependencies = [
  "dunce",
  "env_logger",
  "http",
+ "lazy_static",
  "linkcheck",
  "log",
  "mdbook",
