@@ -49,7 +49,7 @@ struct Args {
     colour: ColorChoice,
     #[structopt(
         short = "f",
-        long = "file",
+        long = "files",
         help = "Check only the given files (check all files if omitted)."
     )]
     selected_files: Option<Vec<String>>,
