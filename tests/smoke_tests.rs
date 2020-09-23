@@ -13,7 +13,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
+fn test_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
 
 #[test]
 fn check_all_links_in_a_valid_book() {
@@ -208,8 +210,13 @@ impl TestRun {
         let mut files = Files::new();
         let src = dunce::canonicalize(ctx.source_dir()).unwrap();
 
-        let file_ids =
-            mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files);
+        let noop_filter = |_: &Path| true;
+
+        let file_ids = mdbook_linkcheck::load_files_into_memory(
+            &ctx.book,
+            &mut files,
+            noop_filter,
+        );
         let (links, incomplete) =
             mdbook_linkcheck::extract_links(file_ids.clone(), &files);
 
