@@ -21,7 +21,7 @@ fn main() -> Result<(), Error> {
     };
 
     let cache_file = ctx.destination.join("cache.json");
-    mdbook_linkcheck::run(&cache_file, args.colour, &ctx)
+    mdbook_linkcheck::run(&cache_file, args.colour, &ctx, args.selected_files)
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -47,6 +47,12 @@ struct Args {
         possible_values = &["always", "auto", "never"]
     )]
     colour: ColorChoice,
+    #[structopt(
+        short = "f",
+        long = "files",
+        help = "Check only the given files (check all files if omitted)."
+    )]
+    selected_files: Option<Vec<String>>,
 }
 
 fn parse_colour(raw: &str) -> Result<ColorChoice, Error> {

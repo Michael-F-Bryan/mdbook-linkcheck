@@ -52,14 +52,19 @@ use semver::{Version, VersionReq};
 use std::{fs::File, path::Path};
 
 /// Run the link checking pipeline.
+///
+/// If `selected_files` is `Some`, then links in the given list of files are checked, rather than
+/// checking links in all files.
 pub fn run(
     cache_file: &Path,
     colour: ColorChoice,
     ctx: &RenderContext,
+    selected_files: Option<Vec<String>>,
 ) -> Result<(), Error> {
     let mut cache = load_cache(cache_file);
 
     log::info!("Started the link checker");
+    log::debug!("Selected file: {:?}", selected_files);
 
     let cfg = crate::get_config(&ctx.config)?;
     crate::version_check(&ctx.version)?;
@@ -70,7 +75,15 @@ pub fn run(
         }
     }
 
-    let (files, outcome) = check_links(&ctx, &mut cache, &cfg)?;
+    let file_filter = |fname: &Path| {
+        if let Some(ref selected_files) = selected_files {
+            selected_files.contains(&fname.display().to_string())
+        } else {
+            true
+        }
+    };
+
+    let (files, outcome) = check_links(&ctx, &mut cache, &cfg, file_filter)?;
     let diags = outcome.generate_diagnostics(&files, cfg.warning_policy);
     report_errors(&files, &diags, colour)?;
 
@@ -113,20 +126,29 @@ pub fn version_check(version: &str) -> Result<(), Error> {
     }
 }
 
-/// A helper for reading the chapters of a [`Book`] into memory.
-pub fn load_files_into_memory(
+/// A helper for reading the chapters of a [`Book`] into memory, filtering out files using
+/// the given `filter`.
+pub fn load_files_into_memory<F>(
     book: &Book,
     dest: &mut Files<String>,
-) -> Vec<FileId> {
+    filter: F,
+) -> Vec<FileId>
+where
+    F: Fn(&Path) -> bool,
+{
     let mut ids = Vec::new();
 
     for item in book.iter() {
         match item {
             BookItem::Chapter(ref ch) => {
                 if let Some(ref path) = ch.path {
-                    let id = dest
-                        .add(path.display().to_string(), ch.content.clone());
-                    ids.push(id);
+                    if filter(&path) {
+                        let id = dest.add(
+                            path.display().to_string(),
+                            ch.content.clone(),
+                        );
+                        ids.push(id);
+                    }
                 }
             }
             BookItem::Separator | BookItem::PartTitle(_) => {}
@@ -151,14 +173,19 @@ fn report_errors(
     Ok(())
 }
 
-fn check_links(
+fn check_links<F>(
     ctx: &RenderContext,
     cache: &mut Cache,
     cfg: &Config,
-) -> Result<(Files<String>, ValidationOutcome), Error> {
+    file_filter: F,
+) -> Result<(Files<String>, ValidationOutcome), Error>
+where
+    F: Fn(&Path) -> bool,
+{
     log::info!("Scanning book for links");
     let mut files = Files::new();
-    let file_ids = crate::load_files_into_memory(&ctx.book, &mut files);
+    let file_ids =
+        crate::load_files_into_memory(&ctx.book, &mut files, file_filter);
     let (links, incomplete_links) =
         crate::extract_links(file_ids.clone(), &files);
     log::info!(
