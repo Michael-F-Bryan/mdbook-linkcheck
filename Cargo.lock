@@ -687,7 +687,7 @@ dependencies = [
 
 [[package]]
 name = "mdbook-linkcheck"
-version = "0.7.1"
+version = "0.7.2-alpha.0"
 dependencies = [
  "anyhow",
  "codespan",
