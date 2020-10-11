@@ -10,7 +10,7 @@
 //! 4. Emit errors/warnings to the user
 
 #![deny(
-    intra_doc_link_resolution_failure,
+    broken_intra_doc_links,
     missing_docs,
     missing_debug_implementations,
     missing_copy_implementations
