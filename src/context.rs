@@ -34,6 +34,12 @@ impl<'a> linkcheck::validation::Context for Context<'a> {
     }
 
     fn should_ignore(&self, link: &Link) -> bool {
+        if !self.cfg.follow_web_links {
+            if let Ok(_) = link.href.parse::<Url>() {
+                return true;
+            }
+        }
+
         self.cfg
             .exclude
             .iter()

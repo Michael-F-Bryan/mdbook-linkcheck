@@ -123,6 +123,56 @@ fn emit_valid_suggestions_on_absolute_links() {
         .unwrap();
 }
 
+#[test]
+fn skip_web_links() {
+    let root = test_dir().join("external-links");
+    let expected_valid = &[
+        "../chapter_1.md",
+        "../chapter_1.md#Subheading",
+        "./chapter_1.html",
+        "./chapter_1.md",
+        "./sibling.md",
+        "/chapter_1.md",
+        "/chapter_1.md#Subheading",
+        "nested/",
+        "nested/README.md",
+        "sibling.md",
+    ];
+
+    let expected_ignored = &[
+        "https://crates.io/crates/mdbook-linkcheck",
+        "https://www.google.com/",
+        "https://nonexistent.forbidden.com/",
+    ];
+
+    let config = Config {
+        follow_web_links: false,
+        ..Default::default()
+    };
+
+    let output = run_link_checker_with_config(&root, config).unwrap();
+
+    let valid_links: Vec<_> = output
+        .valid_links
+        .iter()
+        .map(|link| link.href.to_string())
+        .collect();
+    assert_same_links(expected_valid, valid_links);
+
+    let ignored_links: Vec<_> = output
+        .ignored
+        .iter()
+        .map(|link| link.href.to_string())
+        .collect();
+    assert_same_links(expected_ignored, ignored_links);
+
+    assert!(
+        output.invalid_links.is_empty(),
+        "Found invalid links: {:?}",
+        output.invalid_links
+    );
+}
+
 fn is_specific_error<E>(reason: &Reason) -> bool
 where
     E: std::error::Error + 'static,
@@ -174,6 +224,14 @@ impl TestRun {
                 )]),
                 ..Default::default()
             },
+            after_validation: Box::new(|_, _, _| {}),
+        }
+    }
+
+    fn new_with_config<P: Into<PathBuf>>(root: P, config: Config) -> Self {
+        TestRun {
+            root: root.into(),
+            config,
             after_validation: Box::new(|_, _, _| {}),
         }
     }
@@ -239,4 +297,11 @@ impl TestRun {
 
 fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
     TestRun::new(root).execute()
+}
+
+fn run_link_checker_with_config(
+    root: &Path,
+    config: Config,
+) -> Result<ValidationOutcome, Error> {
+    TestRun::new_with_config(root, config).execute()
 }
