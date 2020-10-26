@@ -1,0 +1,10 @@
+[book]
+authors = ["Michael Bryan"]
+multilingual = false
+src = "src"
+title = "External links"
+
+[output.linkcheck]
+follow-web-links = false
+
+[output.html]
