@@ -55,13 +55,20 @@ use std::{fs::File, path::Path};
 ///
 /// If `selected_files` is `Some`, then links in the given list of files are checked, rather than
 /// checking links in all files.
+///
+/// If `cache_file` is `Some`, it is used as a cache; otherwise, no caching is used, and any
+/// existing cache is ignored.
 pub fn run(
-    cache_file: &Path,
+    cache_file: Option<&Path>,
     colour: ColorChoice,
     ctx: &RenderContext,
     selected_files: Option<Vec<String>>,
 ) -> Result<(), Error> {
-    let mut cache = load_cache(cache_file);
+    let mut cache = if let Some(cache_file) = cache_file {
+        load_cache(cache_file)
+    } else {
+        Cache::default()
+    };
 
     log::info!("Started the link checker");
     log::debug!("Selected file: {:?}", selected_files);
@@ -87,7 +94,9 @@ pub fn run(
     let diags = outcome.generate_diagnostics(&files, cfg.warning_policy);
     report_errors(&files, &diags, colour)?;
 
-    save_cache(cache_file, &cache);
+    if let Some(cache_file) = cache_file {
+        save_cache(cache_file, &cache);
+    }
 
     if diags.iter().any(|diag| diag.severity >= Severity::Error) {
         log::info!("{} broken links found", outcome.invalid_links.len());
