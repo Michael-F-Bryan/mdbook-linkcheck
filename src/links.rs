@@ -1,5 +1,6 @@
-use codespan::{FileId, Files};
+use codespan::{FileId, Files, Span};
 use linkcheck::Link;
+use pulldown_cmark::{BrokenLink, CowStr};
 use std::{cell::RefCell, fmt::Debug};
 
 /// Search every file in the [`Files`] and collate all the links that are
@@ -15,34 +16,41 @@ where
     let broken_links = RefCell::new(Vec::new());
 
     for file_id in target_files {
-        let cb = on_broken_links(file_id, &broken_links);
         let src = files.source(file_id);
         log::debug!("Scanning {}", files.name(file_id).to_string_lossy());
 
-        links.extend(
-            linkcheck::scanners::markdown_with_broken_link_callback(src, &cb)
-                .map(|(link, span)| Link::new(link, span, file_id)),
-        );
+        links.extend(scan_links(file_id, &*src, &mut |broken_link| {
+            let BrokenLink {
+                reference, span, ..
+            } = broken_link;
+            log::debug!(
+                "Found a (possibly) broken link to [{}] at {:?}",
+                reference,
+                span
+            );
+
+            broken_links.borrow_mut().push(IncompleteLink {
+                reference: broken_link.reference.to_string(),
+                span: Span::new(span.start as u32, span.end as u32),
+                file: file_id,
+            });
+            None
+        }));
     }
 
     (links, broken_links.into_inner())
 }
 
-/// Get a closure which can be used as the broken links callback, adding a new
-/// [`IncompleteLink`] to the list.
-fn on_broken_links<'a>(
-    file: FileId,
-    dest: &'a RefCell<Vec<IncompleteLink>>,
-) -> impl Fn(&str, &str) -> Option<(String, String)> + 'a {
-    move |raw, _| {
-        log::debug!("Found a (possibly) broken link to [{}]", raw);
-
-        dest.borrow_mut().push(IncompleteLink {
-            text: raw.to_string(),
-            file,
-        });
-        None
-    }
+fn scan_links<'a, F>(
+    file_id: FileId,
+    src: &'a str,
+    cb: &'a mut F,
+) -> impl Iterator<Item = Link> + 'a
+where
+    F: FnMut(BrokenLink<'_>) -> Option<(CowStr<'a>, CowStr<'a>)> + 'a,
+{
+    linkcheck::scanners::markdown_with_broken_link_callback(src, Some(cb))
+        .map(move |(link, span)| Link::new(link, span, file_id))
 }
 
 /// A potential link that has a broken reference (e.g `[foo]` when there is no
@@ -50,7 +58,9 @@ fn on_broken_links<'a>(
 #[derive(Debug, Clone, PartialEq)]
 pub struct IncompleteLink {
     /// The reference name (e.g. the `foo` in `[foo]`).
-    pub text: String,
+    pub reference: String,
     /// Which file was the incomplete link found in?
     pub file: FileId,
+    /// Where this incomplete link occurred in the source text.
+    pub span: Span,
 }

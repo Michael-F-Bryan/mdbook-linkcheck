@@ -13,9 +13,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-fn test_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests")
-}
+fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
 
 #[test]
 fn check_all_links_in_a_valid_book() {
@@ -72,7 +70,7 @@ fn correctly_find_broken_links() {
     assert_same_links(broken, expected);
     // we also have one incomplete link
     assert_eq!(output.incomplete_links.len(), 1);
-    assert_eq!(output.incomplete_links[0].text, "incomplete link");
+    assert_eq!(output.incomplete_links[0].reference, "incomplete link");
 }
 
 #[test]

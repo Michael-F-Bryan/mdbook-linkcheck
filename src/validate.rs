@@ -1,6 +1,6 @@
 use crate::{Config, Context, IncompleteLink, WarningPolicy};
 use anyhow::Error;
-use codespan::{FileId, Files, Span};
+use codespan::{FileId, Files};
 use codespan_reporting::diagnostic::{Diagnostic, Label, Severity};
 use linkcheck::{
     validation::{Cache, InvalidLink, Options, Outcomes, Reason},
@@ -218,7 +218,7 @@ impl ValidationOutcome {
         let mut diags = Vec::new();
 
         self.add_invalid_link_diagnostics(&mut diags);
-        self.add_incomplete_link_diagnostics(warning_policy, &mut diags, files);
+        self.add_incomplete_link_diagnostics(warning_policy, &mut diags);
         self.warn_on_absolute_links(warning_policy, &mut diags, files);
 
         diags
@@ -228,7 +228,6 @@ impl ValidationOutcome {
         &self,
         warning_policy: WarningPolicy,
         diags: &mut Vec<Diagnostic<FileId>>,
-        files: &Files<String>,
     ) {
         let severity = match warning_policy {
             WarningPolicy::Error => Severity::Error,
@@ -237,15 +236,18 @@ impl ValidationOutcome {
         };
 
         for incomplete in &self.incomplete_links {
-            let IncompleteLink { ref text, file } = incomplete;
+            let IncompleteLink {
+                ref reference,
+                file,
+                span,
+            } = incomplete;
 
-            let span = resolve_incomplete_link_span(incomplete, files);
             let msg =
-                format!("Did you forget to define a URL for `{0}`?", text);
-            let label = Label::primary(*file, span).with_message(msg);
+                format!("Did you forget to define a URL for `{0}`?", reference);
+            let label = Label::primary(*file, *span).with_message(msg);
             let note = format!(
                 "hint: declare the link's URL. For example: `[{}]: http://example.com/`",
-                text
+                reference
             );
 
             let diag = Diagnostic::new(severity)
@@ -427,23 +429,6 @@ fn most_specific_error_message(link: &InvalidLink) -> String {
         Reason::Web(ref web) => web.to_string(),
         // fall back to the Reason's Display impl
         _ => link.reason.to_string(),
-    }
-}
-
-/// HACK: this is a workaround for
-/// [pulldown-cmark#165](https://github.com/raphlinus/pulldown-cmark/issues/165)
-/// which uses good ol' string searching to find where an incomplete link may
-/// have been defined.
-fn resolve_incomplete_link_span(
-    incomplete: &IncompleteLink,
-    files: &Files<String>,
-) -> Span {
-    let needle = format!("[{}]", incomplete.text);
-    let src = files.source(incomplete.file);
-
-    match src.find(&needle).map(|ix| ix as u32) {
-        Some(start_ix) => Span::new(start_ix, start_ix + needle.len() as u32),
-        None => files.source_span(incomplete.file),
     }
 }
 
