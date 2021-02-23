@@ -1,0 +1,37 @@
+on: [push, pull_request]
+
+name: Continuous integration
+
+jobs:
+  check:
+    name: Compile and Test
+    strategy:
+      matrix:
+        rust:
+          - nightly
+          - stable
+          # MSRV - Relatively recent compiler version
+          - 1.46.0
+        os:
+          - linux
+          - windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --verbose
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --verbose

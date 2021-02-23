@@ -1,7 +1,6 @@
-# MDBook LinkCheck
+# MDBook Link-Check
 
-[![Build Status](https://travis-ci.org/Michael-F-Bryan/mdbook-linkcheck.svg?branch=master)](https://travis-ci.org/Michael-F-Bryan/mdbook-linkcheck)
-[![Build status](https://ci.appveyor.com/api/projects/status/5ysqtugw3205omc1?svg=true)](https://ci.appveyor.com/project/Michael-F-Bryan/mdbook-linkcheck)
+[![Continuous integration](https://github.com/Michael-F-Bryan/mdbook-linkcheck/workflows/Continuous%20integration/badge.svg?branch=master)](https://github.com/Michael-F-Bryan/mdbook-linkcheck/actions)
 [![Crates.io](https://img.shields.io/crates/v/mdbook-linkcheck.svg)](https://crates.io/crates/mdbook-linkcheck)
 [![Docs.rs](https://docs.rs/mdbook-linkcheck/badge.svg)](https://docs.rs/mdbook-linkcheck/)
 [![license](https://img.shields.io/github/license/michael-f-bryan/mdbook-linkcheck.svg)](https://github.com/Michael-F-Bryan/mdbook-linkcheck/blob/master/LICENSE)
