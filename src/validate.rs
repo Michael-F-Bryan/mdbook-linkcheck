@@ -13,7 +13,7 @@ use std::{
     path::{Component, Path, PathBuf},
     sync::Mutex,
 };
-use tokio::runtime::Runtime;
+use tokio::runtime::Builder;
 
 fn lc_validate(
     links: &[Link],
@@ -56,7 +56,7 @@ fn lc_validate(
     };
     let links = collate_links(links, src_dir, files);
 
-    let mut runtime = Runtime::new().unwrap();
+    let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
     let got = runtime.block_on(async {
         let mut outcomes = Outcomes::default();
 

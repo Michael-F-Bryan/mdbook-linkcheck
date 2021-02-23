@@ -53,11 +53,11 @@ use std::{fs::File, path::Path};
 
 /// Run the link checking pipeline.
 ///
-/// If `selected_files` is `Some`, then links in the given list of files are checked, rather than
-/// checking links in all files.
+/// If `selected_files` is `Some`, then links in the given list of files are
+/// checked, rather than checking links in all files.
 ///
-/// If `cache_file` is `Some`, it is used as a cache; otherwise, no caching is used, and any
-/// existing cache is ignored.
+/// If `cache_file` is `Some`, it is used as a cache; otherwise, no caching is
+/// used, and any existing cache is ignored.
 pub fn run(
     cache_file: Option<&Path>,
     colour: ColorChoice,
@@ -135,8 +135,8 @@ pub fn version_check(version: &str) -> Result<(), Error> {
     }
 }
 
-/// A helper for reading the chapters of a [`Book`] into memory, filtering out files using
-/// the given `filter`.
+/// A helper for reading the chapters of a [`Book`] into memory, filtering out
+/// files using the given `filter`.
 pub fn load_files_into_memory<F>(
     book: &Book,
     dest: &mut Files<String>,
@@ -159,8 +159,8 @@ where
                         ids.push(id);
                     }
                 }
-            }
-            BookItem::Separator | BookItem::PartTitle(_) => {}
+            },
+            BookItem::Separator | BookItem::PartTitle(_) => {},
         }
     }
 
@@ -176,7 +176,7 @@ fn report_errors(
     let cfg = codespan_reporting::term::Config::default();
 
     for diag in diags {
-        codespan_reporting::term::emit(&mut writer, &cfg, files, diag)?;
+        // codespan_reporting::term::emit(&mut writer, &cfg, files, diag)?;
     }
 
     Ok(())
@@ -226,12 +226,12 @@ fn load_cache(filename: &Path) -> Cache {
             Err(e) => {
                 log::warn!("Unable to deserialize the cache: {}", e);
                 Cache::default()
-            }
+            },
         },
         Err(e) => {
             log::debug!("Unable to open the cache: {}", e);
             Cache::default()
-        }
+        },
     }
 }
 
@@ -249,7 +249,7 @@ fn save_cache(filename: &Path, cache: &Cache) {
             if let Err(e) = serde_json::to_writer(f, cache) {
                 log::warn!("Saving the cache as JSON failed: {}", e);
             }
-        }
+        },
         Err(e) => log::warn!("Unable to create the cache file: {}", e),
     }
 }
