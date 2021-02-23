@@ -13,7 +13,7 @@ jobs:
           # MSRV - Relatively recent compiler version
           - 1.46.0
         os:
-          - linux-latest
+          - ubuntu-latest
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
