@@ -13,8 +13,8 @@ jobs:
           # MSRV - Relatively recent compiler version
           - 1.46.0
         os:
-          - linux
-          - windows
+          - linux-latest
+          - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
