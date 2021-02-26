@@ -36,7 +36,7 @@ jobs:
         profile: minimal
         toolchain: stable
     - name: Build
-      run: cargo build --release --locked
+      run: cargo xtask dist
     - name: Upload binaries to release
       uses: actions/upload-artifact@v2
       with:
@@ -56,9 +56,10 @@ jobs:
         with:
           path: public
 
-    - uses: ncipollo/release-action@v1
-      with:
-        artifacts: "public/*.zip"
-        body: |
-          Released ${{ github.ref }}
-        token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "public/*.zip"
+          body: |
+            Released ${{ github.ref }}.
+          token: ${{ secrets.GITHUB_TOKEN }}
