@@ -21,7 +21,7 @@ codespan-reporting = "0.11"
 dunce = "1.0.0"
 env_logger = "0.8"
 http = "0.2"
-linkcheck = "0.3.1"
+linkcheck = "0.4"
 log = "0.4"
 mdbook = { version = "0.4", default-features = false }
 pulldown-cmark = "0.8.0"
