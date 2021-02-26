@@ -176,7 +176,7 @@ fn report_errors(
     let cfg = codespan_reporting::term::Config::default();
 
     for diag in diags {
-        // codespan_reporting::term::emit(&mut writer, &cfg, files, diag)?;
+        codespan_reporting::term::emit(&mut writer, &cfg, files, diag)?;
     }
 
     Ok(())
