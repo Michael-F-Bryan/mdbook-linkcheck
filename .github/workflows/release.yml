@@ -41,7 +41,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: ${{ matrix.asset_name }}
-        path: public/${{ matrix.asset_name }}
+        path: ${{ matrix.artifact_name }}
 
   create-release:
     name: Create Release
