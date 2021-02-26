@@ -19,15 +19,15 @@ jobs:
         include:
           - name: linux
             os: ubuntu-latest
-            artifact_name: "target/dist/mdbook-linkcheck.${{ github.ref }}.x86_64-unknown-linux-gnu.zip"
+            artifact_name: "target/dist/*.zip"
             asset_name: mdbook-linkcheck-linux
           - name: windows
             os: windows-latest
-            artifact_name: "target/dist/mdbook-linkcheck.${{ github.ref }}.x86_64-pc-windows-msvc.zip"
+            artifact_name: "target/dist/*.zip"
             asset_name: mdbook-linkcheck-windows
           - name: macos
             os: macos-latest
-            artifact_name: "target/dist/mdbook-linkcheck.${{ github.ref }}.x86_64-apple-darwin.zip"
+            artifact_name: "target/dist/*.zip"
             asset_name: mdbook-linkcheck-macos
     steps:
     - uses: actions/checkout@v1
@@ -50,49 +50,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: |
-            Released ${{ github.ref }}
-          draft: false
-          prerelease: false
 
       - name: Fetch Pre-Compiled Binaries
         uses: actions/download-artifact@v2
         with:
           path: public
-      - name: Upload Linux Binaries
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: "public/mdbook-linkcheck.${{ github.ref }}.x86_64-unknown-linux-gnu.zip"
-          asset_name: "mdbook-linkcheck.${{ github.ref }}.x86_64-unknown-linux-gnu.zip"
-          asset_content_type: application/zip
-      - name: Upload Windows Binaries
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: "public/mdbook-linkcheck.${{ github.ref }}.x86_64-pc-windows-msvc.zip"
-          asset_name: "mdbook-linkcheck.${{ github.ref }}.x86_64-pc-windows-msvc.zip"
-          asset_content_type: application/zip
-      - name: Upload MacOS Binaries
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: "target/dist/mdbook-linkcheck.${{ github.ref }}.x86_64-apple-darwin.zip"
-          asset_name: "public/mdbook-linkcheck.${{ github.ref }}.x86_64-apple-darwin.zip"
-          asset_content_type: application/zip
 
-
+    - uses: ncipollo/release-action@v1
+      with:
+        artifacts: "public/*.zip"
+        body: |
+          Released ${{ github.ref }}
+        token: ${{ secrets.GITHUB_TOKEN }}
