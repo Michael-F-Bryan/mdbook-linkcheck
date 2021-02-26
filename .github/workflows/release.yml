@@ -6,8 +6,8 @@ on:
       - 'v*'
 
 jobs:
-  publish:
-    name: Publish for ${{ matrix.os }}
+  build:
+    name: Build release artifacts for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -16,34 +16,86 @@ jobs:
             windows,
             macos
         ]
-
         include:
           - name: linux
             os: ubuntu-latest
-            artifact_name: target/release/mdbook-linkcheck
+            artifact_name: "target/dist/mdbook-linkcheck.${{ github.ref }}.x86_64-unknown-linux-gnu.zip"
             asset_name: mdbook-linkcheck-linux
           - name: windows
             os: windows-latest
-            artifact_name: target/release/mdbook-linkcheck.exe
+            artifact_name: "target/dist/mdbook-linkcheck.${{ github.ref }}.x86_64-pc-windows-msvc.zip"
             asset_name: mdbook-linkcheck-windows
           - name: macos
             os: macos-latest
-            artifact_name: target/release/mdbook-linkcheck
+            artifact_name: "target/dist/mdbook-linkcheck.${{ github.ref }}.x86_64-apple-darwin.zip"
             asset_name: mdbook-linkcheck-macos
-
     steps:
     - uses: actions/checkout@v1
-
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
-
     - name: Build
       run: cargo build --release --locked
-
     - name: Upload binaries to release
       uses: actions/upload-artifact@v2
       with:
         name: ${{ matrix.asset_name }}
-        path: ${{ matrix.artifact_name }}
+        path: public/${{ matrix.asset_name }}
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Released ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Fetch Pre-Compiled Binaries
+        uses: actions/download-artifact@v2
+        with:
+          path: public
+      - name: Upload Linux Binaries
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: "public/mdbook-linkcheck.${{ github.ref }}.x86_64-unknown-linux-gnu.zip"
+          asset_name: "mdbook-linkcheck.${{ github.ref }}.x86_64-unknown-linux-gnu.zip"
+          asset_content_type: application/zip
+      - name: Upload Windows Binaries
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: "public/mdbook-linkcheck.${{ github.ref }}.x86_64-pc-windows-msvc.zip"
+          asset_name: "mdbook-linkcheck.${{ github.ref }}.x86_64-pc-windows-msvc.zip"
+          asset_content_type: application/zip
+      - name: Upload MacOS Binaries
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: "target/dist/mdbook-linkcheck.${{ github.ref }}.x86_64-apple-darwin.zip"
+          asset_name: "public/mdbook-linkcheck.${{ github.ref }}.x86_64-apple-darwin.zip"
+          asset_content_type: application/zip
+
+
