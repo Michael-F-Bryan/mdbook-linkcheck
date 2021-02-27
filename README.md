@@ -21,8 +21,12 @@ grab an executable from [GitHub Releases][releases] or use this line of
 `curl`:
 
 ```console
-curl -LSfs https://japaric.github.io/trust/install.sh | \
-    sh -s -- --git Michael-F-Bryan/mdbook-linkcheck
+curl -s https://api.github.com/repos/Michael-F-Bryan/mdbook-linkcheck/releases/latest \
+    | grep browser_download_url \
+    | grep $(rustc -Vv | grep host | cut -d' ' -f2) \
+    | cut -d : -f 2,3 \
+    | tr -d \" \
+    | wget -qi -
 ```
 
 Next you'll need to update your `book.toml` to let `mdbook` know it needs to
