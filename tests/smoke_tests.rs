@@ -54,6 +54,7 @@ fn correctly_find_broken_links() {
     let expected = &[
         "./foo/bar/baz.html",
         "../../../../../../../../../../../../etc/shadow",
+        "./asdf.png",
         "./chapter_1.md",
         "./second/directory.md",
         "http://this-doesnt-exist.com.au.nz.us/",
@@ -184,6 +185,7 @@ where
     false
 }
 
+#[track_caller]
 fn assert_same_links<L, R, P, Q>(left: L, right: R)
 where
     L: IntoIterator<Item = P>,

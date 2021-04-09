@@ -9,3 +9,6 @@
 [It would be bad if this worked...](../../../../../../../../../../../../etc/shadow)
 
 [incomplete link]
+
+![Missing Image](./asdf.png)
+
