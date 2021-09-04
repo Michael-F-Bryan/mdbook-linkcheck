@@ -4,14 +4,9 @@ extern crate pretty_assertions;
 use anyhow::Error;
 use codespan::{FileId, Files};
 use linkcheck::validation::{Cache, Reason};
-use mdbook::{renderer::RenderContext, MDBook};
+use mdbook::{renderer::{RenderContext, Renderer}, MDBook};
 use mdbook_linkcheck::{Config, HashedRegex, ValidationOutcome, WarningPolicy};
-use std::{
-    collections::HashMap,
-    convert::TryInto,
-    iter::FromIterator,
-    path::{Path, PathBuf},
-};
+use std::{cell::Cell, collections::HashMap, convert::TryInto, iter::FromIterator, path::{Path, PathBuf}};
 
 fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
 
@@ -208,6 +203,7 @@ struct TestRun {
     root: PathBuf,
     after_validation:
         Box<dyn Fn(&Files<String>, &ValidationOutcome, &Vec<FileId>)>,
+    validation_outcome: Cell<Option<ValidationOutcome>>,
 }
 
 impl TestRun {
@@ -225,6 +221,7 @@ impl TestRun {
                 ..Default::default()
             },
             after_validation: Box::new(|_, _, _| {}),
+            validation_outcome: Cell::new(None),
         }
     }
 
@@ -233,6 +230,7 @@ impl TestRun {
             root: root.into(),
             config,
             after_validation: Box::new(|_, _, _| {}),
+            validation_outcome: Cell::new(None),
         }
     }
 
@@ -262,9 +260,18 @@ impl TestRun {
         let mut md = MDBook::load(&self.root).unwrap();
         md.config.set("output.linkcheck", &self.config).unwrap();
 
-        let ctx =
-            RenderContext::new(&self.root, md.book, md.config, &self.root);
+        md.execute_build_process(&self)?;
 
+        Ok(self.validation_outcome.take().unwrap())
+    }
+}
+
+impl Renderer for TestRun {
+    fn name(&self) -> &str {
+        "mdbook-linkcheck-TestRun"
+    }
+
+    fn render(&self, ctx: &RenderContext) -> anyhow::Result<()> {
         let mut files = Files::new();
         let src = dunce::canonicalize(ctx.source_dir()).unwrap();
 
@@ -291,7 +298,8 @@ impl TestRun {
 
         (self.after_validation)(&files, &outcome, &file_ids);
 
-        Ok(outcome)
+        self.validation_outcome.set(Some(outcome));
+        Ok(())
     }
 }
 
