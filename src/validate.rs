@@ -85,13 +85,30 @@ fn ensure_included_in_book(
     let src_dir = src_dir.to_path_buf();
 
     move |resolved_link, _| {
-        let part_of_the_book = resolved_link.starts_with(&src_dir);
+        let resolved_link = match resolved_link.strip_prefix(&src_dir) {
+            Ok(path) => path,
+            // Not part of the book.
+            Err(_) => return Ok(()),
+        };
         let was_included_in_summary =
-            file_names.iter().any(|name| resolved_link.ends_with(name));
+            file_names.iter().any(|summary_path| {
+                let summary_path = Path::new(summary_path);
+                if summary_path.parent() != resolved_link.parent() {
+                    return false;
+                }
+                match (summary_path.file_name(), resolved_link.file_name()) {
+                    (a, b) if a == b => true,
+                    (Some(summary), Some(resolved)) => {
+                        // index preprocessor rewrites summary paths before we get to them.
+                        summary == Path::new("index.md") && resolved == Path::new("README.md")
+                    }
+                    _ => false,
+                }
+            });
         let ext = resolved_link.extension();
-        let is_marhdown = ext == Some(OsStr::new("md"));
+        let is_markdown = ext == Some(OsStr::new("md"));
 
-        if !part_of_the_book || was_included_in_summary || !is_marhdown {
+        if was_included_in_summary || !is_markdown {
             Ok(())
         } else {
             use std::io::{Error, ErrorKind};
