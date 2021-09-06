@@ -10,7 +10,7 @@
 //! 4. Emit errors/warnings to the user
 
 #![deny(
-    broken_intra_doc_links,
+    rustdoc::broken_intra_doc_links,
     missing_docs,
     missing_debug_implementations,
     missing_copy_implementations
