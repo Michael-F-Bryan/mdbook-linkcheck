@@ -59,7 +59,7 @@ jobs:
       - name: Publish the Release
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "public/*.zip"
+          artifacts: "public/mdbook-linkcheck-*/*.zip"
           body: |
             Released ${{ github.ref }}.
           token: ${{ secrets.GITHUB_TOKEN }}
