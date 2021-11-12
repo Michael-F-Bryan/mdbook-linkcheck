@@ -82,18 +82,9 @@ where
 fn archive_name(outdir: &Path) -> Result<PathBuf, Error> {
     let BuildInfo { compiler, .. } = get_build_info();
 
-    let output = Command::new("git")
-        .args(&["describe", "--tags", "--abbrev=0"])
-        .stdout(Stdio::piped())
-        .output()
-        .context("Unable to start `git`")?;
-    let stdout = std::str::from_utf8(&output.stdout)
-        .context("Unable to read the output from git")?;
-    let latest_tag = stdout.trim();
-
     let filename = format!(
-        "mdbook-linkcheck.{}.{}.zip",
-        latest_tag, compiler.target_triple
+        "mdbook-linkcheck.{}.zip",
+        compiler.target_triple
     );
 
     Ok(outdir.join(filename))
