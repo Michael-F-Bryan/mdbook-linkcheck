@@ -10,8 +10,8 @@ jobs:
         rust:
           - nightly
           - stable
-          # MSRV - Relatively recent compiler version
-          - 1.46.0
+          # MSRV - Required for "an unknown tool name found in scoped lint: `rustdoc::broken_intra_doc_links`"
+          - 1.52.1
         os:
           - ubuntu-latest
           - windows-latest
