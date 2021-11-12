@@ -18,7 +18,7 @@ jobs:
         ]
         include:
           - name: linux
-            os: ubuntu-latest
+            os: ubuntu-18.04
             artifact_name: "target/dist/*.zip"
             asset_name: mdbook-linkcheck-linux
           - name: windows
