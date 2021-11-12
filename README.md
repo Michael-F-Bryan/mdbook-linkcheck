@@ -18,16 +18,20 @@ cargo install mdbook-linkcheck
 
 If you don't want to install from source (which often takes a while) you can
 grab an executable from [GitHub Releases][releases] or use this line of
-`curl`:
+`curl` to download a release bundle and install it in the `./mdbook-linkcheck`
+directory:
 
 ```console
-curl -s https://api.github.com/repos/Michael-F-Bryan/mdbook-linkcheck/releases/latest \
-    | grep browser_download_url \
-    | grep $(rustc -Vv | grep host | cut -d' ' -f2) \
-    | cut -d : -f 2,3 \
-    | tr -d \" \
-    | wget -qi -
+mkdir -p mdbook-linkcheck && cd "$_" && \
+  curl -L https://github.com/Michael-F-Bryan/mdbook-linkcheck/releases/latest/download/mdbook-linkcheck.x86_64-unknown-linux-gnu.zip -o mdbook-linkcheck.zip && \
+  unzip "$_" && \
+  chmod +x mdbook-linkcheck && \
+  export PATH=$PWD:$PATH && \
+  cd ..
 ```
+
+(note: you may need to replace the `x86_64-unknown-linux-gnu` with your
+platform's target triple)
 
 Next you'll need to update your `book.toml` to let `mdbook` know it needs to
 use `mdbook-linkcheck` as a backend.
