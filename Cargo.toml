@@ -40,3 +40,6 @@ toml = "0.5"
 
 [workspace]
 members = ["xtask"]
+
+[badges]
+maintenance = { status = "passively-maintained"}
