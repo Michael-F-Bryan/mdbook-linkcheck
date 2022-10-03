@@ -22,6 +22,10 @@ pub struct Config {
     pub follow_web_links: bool,
     /// Are we allowed to link to files outside of the book's source directory?
     pub traverse_parent_directories: bool,
+
+    /// Should treat symlinks as terminal points?
+    pub follow_symlinks: bool,
+
     /// A list of URL patterns to ignore when checking remote links.
     #[serde(default)]
     pub exclude: Vec<HashedRegex>,
@@ -124,6 +128,7 @@ impl Default for Config {
         Config {
             follow_web_links: false,
             traverse_parent_directories: false,
+            follow_symlinks: true,
             exclude: Vec::new(),
             user_agent: default_user_agent(),
             http_headers: HashMap::new(),
@@ -296,6 +301,7 @@ https = ["accept: html/text", "authorization: Basic $TOKEN"]
             follow_web_links: true,
             warning_policy: WarningPolicy::Error,
             traverse_parent_directories: true,
+            follow_symlinks: true,
             exclude: vec![HashedRegex::new(r"google\.com").unwrap()],
             user_agent: String::from("Internet Explorer"),
             http_headers: HashMap::from_iter(vec![(

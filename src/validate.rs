@@ -38,6 +38,7 @@ fn lc_validate(
         .set_links_may_traverse_the_root_directory(
             cfg.traverse_parent_directories,
         )
+        .set_follow_symlinks(cfg.follow_symlinks)
         // take into account the `index` preprocessor which rewrites `README.md`
         // to `index.md` (which tne gets rendered as `index.html`)
         .set_default_file("README.md")
