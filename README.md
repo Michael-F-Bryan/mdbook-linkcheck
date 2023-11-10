@@ -160,6 +160,18 @@ pages:
     - master
 ```
 
+For those using Github actions, include the following snippet before running `mdbook build`
+```yaml
+      - name: Install latest linkcheck
+        run: |
+          mkdir -p mdbook-linkcheck && \
+          curl -L https://github.com/Michael-F-Bryan/mdbook-linkcheck/releases/latest/download/mdbook-linkcheck.x86_64-unknown-linux-gnu.zip -o mdbook-linkcheck/mdbook-linkcheck.zip && \
+          unzip -d ./mdbook-linkcheck mdbook-linkcheck/mdbook-linkcheck.zip && \
+          chmod +x mdbook-linkcheck/mdbook-linkcheck && \
+          echo `pwd`/mdbook-linkcheck >> $GITHUB_PATH
+```
+
+
 The [michaelfbryan/mdbook-docker-image][image] docker image is also available
 on Docker hub and comes with the latest version of `mdbook` and
 `mdbook-linkcheck` pre-installed.
