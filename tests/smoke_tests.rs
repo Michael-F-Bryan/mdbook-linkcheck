@@ -4,11 +4,22 @@ extern crate pretty_assertions;
 use anyhow::Error;
 use codespan::{FileId, Files};
 use linkcheck::validation::{Cache, Reason};
-use mdbook::{renderer::{RenderContext, Renderer}, MDBook};
+use mdbook::{
+    renderer::{RenderContext, Renderer},
+    MDBook,
+};
 use mdbook_linkcheck::{Config, HashedRegex, ValidationOutcome, WarningPolicy};
-use std::{cell::Cell, collections::HashMap, convert::TryInto, iter::FromIterator, path::{Path, PathBuf}};
+use std::{
+    cell::Cell,
+    collections::HashMap,
+    convert::TryInto,
+    iter::FromIterator,
+    path::{Path, PathBuf},
+};
 
-fn test_dir() -> PathBuf { Path::new(env!("CARGO_MANIFEST_DIR")).join("tests") }
+fn test_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
 
 #[test]
 fn check_all_links_in_a_valid_book() {
@@ -282,8 +293,11 @@ impl Renderer for TestRun {
             &mut files,
             noop_filter,
         );
-        let (links, incomplete) =
-            mdbook_linkcheck::extract_links(file_ids.clone(), &files);
+        let (links, incomplete) = mdbook_linkcheck::extract_links(
+            &Default::default(),
+            file_ids.clone(),
+            &files,
+        );
 
         let mut cache = Cache::default();
         let outcome = mdbook_linkcheck::validate(
