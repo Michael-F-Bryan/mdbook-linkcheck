@@ -22,6 +22,9 @@ pub struct Config {
     pub follow_web_links: bool,
     /// Are we allowed to link to files outside of the book's source directory?
     pub traverse_parent_directories: bool,
+    /// Turns on support for latex. If true, then the latex fragments will be cut off
+    /// before the file is processed for link consistency.
+    pub latex_support: bool,
     /// A list of URL patterns to ignore when checking remote links.
     #[serde(default)]
     pub exclude: Vec<HashedRegex>,
@@ -38,9 +41,6 @@ pub struct Config {
     /// the list of HTTP headers that must be sent to matching sites.
     #[serde(default)]
     pub http_headers: HashMap<HashedRegex, Vec<HttpHeader>>,
-    /// Turns on support for latex. If true, then the latex fragments will be cut off
-    /// before the file is processed for link consistency.
-    pub latex_support: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -293,6 +293,7 @@ mod tests {
 
     const CONFIG: &str = r#"follow-web-links = true
 traverse-parent-directories = true
+latex-support = false
 exclude = ["google\\.com"]
 user-agent = "Internet Explorer"
 cache-timeout = 3600
@@ -320,6 +321,7 @@ https = ["accept: html/text", "authorization: Basic $TOKEN"]
                 ],
             )]),
             cache_timeout: 3600,
+            latex_support: false,
         };
 
         let got: Config = toml::from_str(CONFIG).unwrap();
