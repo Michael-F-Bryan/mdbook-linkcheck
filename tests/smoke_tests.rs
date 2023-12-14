@@ -64,6 +64,7 @@ fn correctly_find_broken_links() {
         "./chapter_1.md",
         "./second/directory.md",
         "http://this-doesnt-exist.com.au.nz.us/",
+        "latex_with_latex_support_disabled",
         "sibling.md",
     ];
 
@@ -75,9 +76,46 @@ fn correctly_find_broken_links() {
         .map(|invalid| invalid.link.href.to_string())
         .collect();
     assert_same_links(broken, expected);
-    // we also have one incomplete link
-    assert_eq!(output.incomplete_links.len(), 1);
+    // we also have three incomplete link (one normal, one latex)
+    assert_eq!(output.incomplete_links.len(), 2);
     assert_eq!(output.incomplete_links[0].reference, "incomplete link");
+    assert_eq!(output.incomplete_links[1].reference, "math_var");
+}
+
+#[test]
+fn correctly_find_links_with_latex() {
+    let root = test_dir().join("latex-support-links");
+    let expected = &[
+        "./foo/bar/baz.html",
+        "../../../../../../../../../../../../etc/shadow",
+        "./asdf.png",
+        "http://this-doesnt-exist.com.au.nz.us/",
+        "sibling.md",
+        "first_broken_link_nonlatex",
+        "second_broken_link_nonlatex",
+    ];
+
+    let config = Config {
+        follow_web_links: true,
+        latex_support: true,
+        ..Default::default()
+    };
+    let output = run_link_checker_with_config(&root, config).unwrap();
+
+    let broken: Vec<_> = output
+        .invalid_links
+        .iter()
+        .map(|invalid| invalid.link.href.to_string())
+        .collect();
+    assert_same_links(broken, expected);
+
+    // we also have two incomplete link
+    assert_eq!(output.incomplete_links.len(), 2);
+    assert_eq!(
+        output.incomplete_links[0].reference,
+        "this_incomplete_link_inside_nonlatex"
+    );
+    assert_eq!(output.incomplete_links[1].reference, "incomplete link");
 }
 
 #[test]
@@ -294,7 +332,7 @@ impl Renderer for TestRun {
             noop_filter,
         );
         let (links, incomplete) = mdbook_linkcheck::extract_links(
-            &Default::default(),
+            &self.config,
             file_ids.clone(),
             &files,
         );
