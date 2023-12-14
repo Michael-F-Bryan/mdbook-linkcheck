@@ -26,7 +26,13 @@ fn main() -> Result<(), Error> {
     } else {
         Some(cache_file.as_path())
     };
-    mdbook_linkcheck::run(cache_file, args.colour, &ctx, args.selected_files)
+    mdbook_linkcheck::run(
+        cache_file,
+        args.colour,
+        &ctx,
+        args.selected_files,
+        args.latex_support,
+    )
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -55,7 +61,8 @@ struct Args {
     #[structopt(
         short = "f",
         long = "files",
-        help = "Check only the given files (check all files if omitted)."
+        help = "Check only the given files (check all files if omitted).
+Paths must be relative to the book root, e.g. 'chapter1/section1.md'."
     )]
     selected_files: Option<Vec<String>>,
     #[structopt(
@@ -63,6 +70,11 @@ struct Args {
         help = "Ignore any existing cache, neither using nor updating it."
     )]
     no_cache: bool,
+    #[structopt(
+        long = "latex",
+        help = "Turn on support for latex: ignores the segments between $, $$, \\[ \\] and \\( \\). Experimental feature."
+    )]
+    latex_support: bool,
 }
 
 fn parse_colour(raw: &str) -> Result<ColorChoice, Error> {

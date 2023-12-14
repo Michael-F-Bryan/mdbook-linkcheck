@@ -22,6 +22,9 @@ pub struct Config {
     pub follow_web_links: bool,
     /// Are we allowed to link to files outside of the book's source directory?
     pub traverse_parent_directories: bool,
+    /// Turns on support for latex. If true, then the latex fragments will be cut off
+    /// before the file is processed for link consistency.
+    pub latex_support: bool,
     /// A list of URL patterns to ignore when checking remote links.
     #[serde(default)]
     pub exclude: Vec<HashedRegex>,
@@ -129,6 +132,7 @@ impl Default for Config {
             http_headers: HashMap::new(),
             warning_policy: WarningPolicy::Warn,
             cache_timeout: Config::DEFAULT_CACHE_TIMEOUT.as_secs(),
+            latex_support: false,
         }
     }
 }
@@ -158,7 +162,9 @@ impl FromStr for HttpHeader {
 impl TryFrom<&'_ str> for HttpHeader {
     type Error = Error;
 
-    fn try_from(s: &'_ str) -> Result<Self, Error> { HttpHeader::from_str(s) }
+    fn try_from(s: &'_ str) -> Result<Self, Error> {
+        HttpHeader::from_str(s)
+    }
 }
 
 impl TryFrom<String> for HttpHeader {
@@ -176,13 +182,19 @@ impl Into<String> for HttpHeader {
     }
 }
 
-fn default_cache_timeout() -> u64 { Config::DEFAULT_CACHE_TIMEOUT.as_secs() }
-fn default_user_agent() -> String { Config::DEFAULT_USER_AGENT.to_string() }
+fn default_cache_timeout() -> u64 {
+    Config::DEFAULT_CACHE_TIMEOUT.as_secs()
+}
+fn default_user_agent() -> String {
+    Config::DEFAULT_USER_AGENT.to_string()
+}
 
 fn interpolate_env(value: &str) -> Result<HeaderValue, Error> {
     use std::{iter::Peekable, str::CharIndices};
 
-    fn is_ident(ch: char) -> bool { ch.is_ascii_alphanumeric() || ch == '_' }
+    fn is_ident(ch: char) -> bool {
+        ch.is_ascii_alphanumeric() || ch == '_'
+    }
 
     fn ident_end(start: usize, iter: &mut Peekable<CharIndices>) -> usize {
         let mut end = start;
@@ -268,7 +280,9 @@ impl WarningPolicy {
 }
 
 impl Default for WarningPolicy {
-    fn default() -> WarningPolicy { WarningPolicy::Warn }
+    fn default() -> WarningPolicy {
+        WarningPolicy::Warn
+    }
 }
 
 #[cfg(test)]
@@ -279,6 +293,7 @@ mod tests {
 
     const CONFIG: &str = r#"follow-web-links = true
 traverse-parent-directories = true
+latex-support = false
 exclude = ["google\\.com"]
 user-agent = "Internet Explorer"
 cache-timeout = 3600
@@ -306,6 +321,7 @@ https = ["accept: html/text", "authorization: Basic $TOKEN"]
                 ],
             )]),
             cache_timeout: 3600,
+            latex_support: false,
         };
 
         let got: Config = toml::from_str(CONFIG).unwrap();
