@@ -10,5 +10,6 @@
 
 [incomplete link]
 
-![Missing Image](./asdf.png)
+Also if latex support is not enabled, as here, this math expression $[math_var]_5$ \([math_var_2](latex_with_latex_support_disabled)_5\) be parsed as another issue
 
+![Missing Image](./asdf.png)

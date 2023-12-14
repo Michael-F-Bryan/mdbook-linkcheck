@@ -124,6 +124,8 @@ pub(crate) fn filter_out_latex(src: &str) -> (String, ByteIndexMap) {
     let mut byte_index_map = ByteIndexMap::new();
     let mut src: String = src.to_string();
 
+    //println!("\n\n\nFile: {}", src);
+
     let mut process_regex = |regex_expr: &str, replacement: &str| {
         let mut byte_index_map_upds = vec![];
         let reg = Regex::new(regex_expr).unwrap();
@@ -159,6 +161,8 @@ pub(crate) fn filter_out_latex(src: &str) -> (String, ByteIndexMap) {
         r"\\\[(.|\r\n|\r|\n)*\\\]",
         "LATEX_ESCAPED_SQUARE_BRACKET_SUBSTITUTED",
     );
+
+    //println!("\n\n\nFile after: {}", src);
 
     (src.to_string(), byte_index_map)
 }
