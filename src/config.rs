@@ -1,3 +1,5 @@
+#![allow(clippy::mutable_key_type)]
+
 use crate::hashed_regex::HashedRegex;
 use anyhow::Error;
 use http::header::{HeaderName, HeaderValue};

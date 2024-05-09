@@ -4,10 +4,11 @@ version = "0.7.7"
 authors = ["Michael Bryan <michaelfbryan@gmail.com>"]
 description = "A backend for `mdbook` which will check your links for you."
 license = "MIT"
-edition = "2018"
+edition = "2021"
 documentation = "https://docs.rs/mdbook-linkcheck"
 repository = "https://github.com/Michael-F-Bryan/mdbook-linkcheck"
 readme = "README.md"
+rust-version = "1.70"
 
 [[bin]]
 name = "mdbook-linkcheck"
