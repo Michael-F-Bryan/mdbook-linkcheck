@@ -1,5 +1,7 @@
-use crate::config::Config;
-use crate::latex::{filter_out_latex, ByteIndexMap};
+use crate::{
+    config::Config,
+    latex::{filter_out_latex, ByteIndexMap},
+};
 use codespan::{ByteIndex, FileId, Files, Span};
 use linkcheck::Link;
 use pulldown_cmark::{BrokenLink, CowStr};
@@ -49,14 +51,6 @@ where
                     span
                 );
 
-                ////assert!(false, "kek panic, unreachable?");
-                //println!(
-                //    "start {:?} end {:?} res_a {:?} res_b {:?}",
-                //    span.start,
-                //    span.end,
-                //    ByteIndex(byte_index_map.resolve(span.start as u32)),
-                //    ByteIndex(byte_index_map.resolve(span.end as u32))
-                //);
                 let origspan = Span::new(
                     ByteIndex(span.start as u32),
                     ByteIndex(span.end as u32),
