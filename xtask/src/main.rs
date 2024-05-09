@@ -6,7 +6,7 @@ use std::{
     fs::File,
     io::{Seek, Write},
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
 };
 use structopt::StructOpt;
 use zip::{write::FileOptions, ZipWriter};
@@ -23,26 +23,19 @@ fn main() -> Result<(), Error> {
             let archive = archive_name(&outdir)?;
             if let Some(parent) = archive.parent() {
                 std::fs::create_dir_all(parent).with_context(|| {
-                    format!(
-                        "Unable to create the \"{}\" directory",
-                        parent.display()
-                    )
+                    format!("Unable to create the \"{}\" directory", parent.display())
                 })?;
             }
 
-            let f = File::create(&archive)
-                .context("Unable to create the archive file")?;
-            log::info!(
-                "Writing the release archive to \"{}\"",
-                archive.display()
-            );
+            let f = File::create(&archive).context("Unable to create the archive file")?;
+            log::info!("Writing the release archive to \"{}\"", archive.display());
             let mut writer = ZipWriter::new(f);
 
             append_file(&mut writer, &binary)?;
             append_file(&mut writer, PROJECT_ROOT.join("README.md"))?;
             append_file(&mut writer, PROJECT_ROOT.join("LICENSE"))?;
             writer.finish().context("Unable to flush to the archive")?;
-        },
+        }
     }
 
     Ok(())
@@ -62,11 +55,11 @@ where
     log::debug!("Adding \"{}\" to the archive", name);
 
     writer
-        .start_file(name.as_ref(), FileOptions::default())
+        .start_file(name.as_ref(), FileOptions::<()>::default())
         .with_context(|| format!("unable to start writing \"{}\"", name))?;
 
-    let mut f = File::open(path)
-        .with_context(|| format!("Unable to open \"{}\"", path.display()))?;
+    let mut f =
+        File::open(path).with_context(|| format!("Unable to open \"{}\"", path.display()))?;
     let bytes_written = std::io::copy(&mut f, writer).with_context(|| {
         format!(
             "Unable to copy the contents of \"{}\" across",
@@ -82,10 +75,7 @@ where
 fn archive_name(outdir: &Path) -> Result<PathBuf, Error> {
     let BuildInfo { compiler, .. } = get_build_info();
 
-    let filename = format!(
-        "mdbook-linkcheck.{}.zip",
-        compiler.target_triple
-    );
+    let filename = format!("mdbook-linkcheck.{}.zip", compiler.host_triple);
 
     Ok(outdir.join(filename))
 }

@@ -64,8 +64,7 @@ impl Display for HttpHeader {
 
 impl Config {
     /// The default cache timeout (around 12 hours).
-    pub const DEFAULT_CACHE_TIMEOUT: Duration =
-        Duration::from_secs(60 * 60 * 12);
+    pub const DEFAULT_CACHE_TIMEOUT: Duration = Duration::from_secs(60 * 60 * 12);
     /// The default user-agent.
     pub const DEFAULT_USER_AGENT: &'static str =
         concat!(env!("CARGO_PKG_NAME"), "-", env!("CARGO_PKG_VERSION"));
@@ -78,8 +77,7 @@ impl Config {
 
     pub(crate) fn client(&self) -> Client {
         let mut headers = http::HeaderMap::new();
-        headers
-            .insert(http::header::USER_AGENT, self.user_agent.parse().unwrap());
+        headers.insert(http::header::USER_AGENT, self.user_agent.parse().unwrap());
         Client::builder().default_headers(headers).build().unwrap()
     }
 
@@ -95,9 +93,7 @@ impl Config {
 
             for header in headers {
                 match header.interpolate() {
-                    Ok(value) => {
-                        interpolated.push((header.name.clone(), value))
-                    },
+                    Ok(value) => interpolated.push((header.name.clone(), value)),
                     Err(e) => {
                         // We don't want failed interpolation (i.e. due to a
                         // missing env variable) to abort the whole
@@ -111,7 +107,7 @@ impl Config {
                             header,
                             e
                         );
-                    },
+                    }
                 }
             }
 
@@ -145,11 +141,8 @@ impl FromStr for HttpHeader {
             Some(idx) => {
                 let name = s[..idx].parse()?;
                 let value = s[idx + 2..].to_string();
-                Ok(HttpHeader {
-                    name,
-                    value,
-                })
-            },
+                Ok(HttpHeader { name, value })
+            }
 
             None => Err(Error::msg(format!(
                 "The `{}` HTTP header must be in the form `key: value` but it isn't",
@@ -162,7 +155,9 @@ impl FromStr for HttpHeader {
 impl TryFrom<&'_ str> for HttpHeader {
     type Error = Error;
 
-    fn try_from(s: &'_ str) -> Result<Self, Error> { HttpHeader::from_str(s) }
+    fn try_from(s: &'_ str) -> Result<Self, Error> {
+        HttpHeader::from_str(s)
+    }
 }
 
 impl TryFrom<String> for HttpHeader {
@@ -173,20 +168,26 @@ impl TryFrom<String> for HttpHeader {
     }
 }
 
-impl Into<String> for HttpHeader {
-    fn into(self) -> String {
-        let HttpHeader { name, value, .. } = self;
+impl From<HttpHeader> for String {
+    fn from(val: HttpHeader) -> Self {
+        let HttpHeader { name, value, .. } = val;
         format!("{}: {}", name, value)
     }
 }
 
-fn default_cache_timeout() -> u64 { Config::DEFAULT_CACHE_TIMEOUT.as_secs() }
-fn default_user_agent() -> String { Config::DEFAULT_USER_AGENT.to_string() }
+fn default_cache_timeout() -> u64 {
+    Config::DEFAULT_CACHE_TIMEOUT.as_secs()
+}
+fn default_user_agent() -> String {
+    Config::DEFAULT_USER_AGENT.to_string()
+}
 
 fn interpolate_env(value: &str) -> Result<HeaderValue, Error> {
     use std::{iter::Peekable, str::CharIndices};
 
-    fn is_ident(ch: char) -> bool { ch.is_ascii_alphanumeric() || ch == '_' }
+    fn is_ident(ch: char) -> bool {
+        ch.is_ascii_alphanumeric() || ch == '_'
+    }
 
     fn ident_end(start: usize, iter: &mut Peekable<CharIndices>) -> usize {
         let mut end = start;
@@ -212,7 +213,7 @@ fn interpolate_env(value: &str) -> Result<HeaderValue, Error> {
                 _ => {
                     res.push('\\');
                     res.push(ch);
-                },
+                }
             }
 
             backslash = false;
@@ -232,9 +233,9 @@ fn interpolate_env(value: &str) -> Result<HeaderValue, Error> {
                                 "Failed to retrieve `{}` env var: {}",
                                 name, e
                             )))
-                        },
+                        }
                     }
-                },
+                }
 
                 _ => res.push(ch),
             }
@@ -252,10 +253,12 @@ fn interpolate_env(value: &str) -> Result<HeaderValue, Error> {
 /// How should warnings be treated?
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum WarningPolicy {
     /// Silently ignore them.
     Ignore,
     /// Warn the user, but don't fail the linkcheck.
+    #[default]
     Warn,
     /// Treat warnings as errors.
     Error,
@@ -271,15 +274,10 @@ impl WarningPolicy {
     }
 }
 
-impl Default for WarningPolicy {
-    fn default() -> WarningPolicy { WarningPolicy::Warn }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::{convert::TryInto, iter::FromIterator};
-    use toml;
 
     const CONFIG: &str = r#"follow-web-links = true
 traverse-parent-directories = true

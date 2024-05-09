@@ -49,11 +49,7 @@ impl ByteIndexMap {
         assert!(end >= start);
         let start_end_range: Vec<u32> = (start..end).collect();
         for i in start_end_range.iter() {
-            assert!(
-                !self.inserted_ranges_a.contains(i),
-                "Collision on {:?}",
-                i
-            );
+            assert!(!self.inserted_ranges_a.contains(i), "Collision on {:?}", i);
             self.inserted_ranges_a.insert(*i);
         }
         self.consistency_check("Before update");
@@ -67,7 +63,7 @@ impl ByteIndexMap {
                 // chunks must not overlap
                 assert!(end < *pos_a);
                 ix
-            },
+            }
             None => self.mapping.len(),
         };
         let (pos_b, pos_a) = if insert_ix > 0 {
@@ -124,7 +120,7 @@ pub(crate) fn filter_out_latex(src: &str) -> (String, ByteIndexMap) {
     let mut byte_index_map = ByteIndexMap::new();
     let mut src: String = src.to_string();
 
-    //println!("\n\n\nFile: {}", src);
+    // println!("\n\n\nFile: {}", src);
 
     let mut process_regex = |regex_expr: &str, replacement: &str| {
         let mut byte_index_map_upds = vec![];
@@ -162,7 +158,7 @@ pub(crate) fn filter_out_latex(src: &str) -> (String, ByteIndexMap) {
         "LATEX_ESCAPED_SQUARE_BRACKET_SUBSTITUTED",
     );
 
-    //println!("\n\n\nFile after: {}", src);
+    // println!("\n\n\nFile after: {}", src);
 
     (src.to_string(), byte_index_map)
 }

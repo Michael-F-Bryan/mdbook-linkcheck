@@ -93,7 +93,7 @@ pub fn run(
         }
     };
 
-    let (files, outcome) = check_links(&ctx, &mut cache, &cfg, file_filter)?;
+    let (files, outcome) = check_links(ctx, &mut cache, &cfg, file_filter)?;
     let diags = outcome.generate_diagnostics(&files, cfg.warning_policy);
     report_errors(&files, &diags, colour)?;
 
@@ -140,11 +140,7 @@ pub fn version_check(version: &str) -> Result<(), Error> {
 
 /// A helper for reading the chapters of a [`Book`] into memory, filtering out
 /// files using the given `filter`.
-pub fn load_files_into_memory<F>(
-    book: &Book,
-    dest: &mut Files<String>,
-    filter: F,
-) -> Vec<FileId>
+pub fn load_files_into_memory<F>(book: &Book, dest: &mut Files<String>, filter: F) -> Vec<FileId>
 where
     F: Fn(&Path) -> bool,
 {
@@ -161,8 +157,8 @@ where
                         ids.push(id);
                     }
                 }
-            },
-            BookItem::Separator | BookItem::PartTitle(_) => {},
+            }
+            BookItem::Separator | BookItem::PartTitle(_) => {}
         }
     }
 
@@ -195,20 +191,18 @@ where
 {
     log::info!("Scanning book for links");
     let mut files: Files<String> = Files::new();
-    let file_ids =
-        crate::load_files_into_memory(&ctx.book, &mut files, file_filter);
-    let (links, incomplete_links) =
-        crate::extract_links(cfg, file_ids.clone(), &files);
+    let file_ids = crate::load_files_into_memory(&ctx.book, &mut files, file_filter);
+    let (links, incomplete_links) = crate::extract_links(cfg, file_ids.clone(), &files);
     log::info!(
         "Found {} links ({} incomplete links)",
         links.len(),
         incomplete_links.len()
     );
-    let src = dunce::canonicalize(ctx.source_dir())
-        .context("Unable to resolve the source directory")?;
+    let src =
+        dunce::canonicalize(ctx.source_dir()).context("Unable to resolve the source directory")?;
     let outcome = crate::validate(
         &links,
-        &cfg,
+        cfg,
         &src,
         cache,
         &files,
@@ -228,12 +222,12 @@ fn load_cache(filename: &Path) -> Cache {
             Err(e) => {
                 log::warn!("Unable to deserialize the cache: {}", e);
                 Cache::default()
-            },
+            }
         },
         Err(e) => {
             log::debug!("Unable to open the cache: {}", e);
             Cache::default()
-        },
+        }
     }
 }
 
@@ -251,7 +245,7 @@ fn save_cache(filename: &Path, cache: &Cache) {
             if let Err(e) = serde_json::to_writer(f, cache) {
                 log::warn!("Saving the cache as JSON failed: {}", e);
             }
-        },
+        }
         Err(e) => log::warn!("Unable to create the cache file: {}", e),
     }
 }

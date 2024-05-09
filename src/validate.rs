@@ -31,13 +31,8 @@ fn lc_validate(
     let options = Options::default()
         .with_root_directory(src_dir)
         .expect("The source directory doesn't exist?")
-        .set_alternate_extensions(vec![(
-            "html".to_string(),
-            vec!["md".to_string()],
-        )])
-        .set_links_may_traverse_the_root_directory(
-            cfg.traverse_parent_directories,
-        )
+        .set_alternate_extensions(vec![("html".to_string(), vec!["md".to_string()])])
+        .set_links_may_traverse_the_root_directory(cfg.traverse_parent_directories)
         // take into account the `index` preprocessor which rewrites `README.md`
         // to `index.md` (which tne gets rendered as `index.html`)
         .set_default_file("README.md")
@@ -49,9 +44,7 @@ fn lc_validate(
         client: cfg.client(),
         filesystem_options: options,
         cfg,
-        src_dir,
         cache: Mutex::new(cache.clone()),
-        files,
         interpolated_headers,
     };
     let links = collate_links(links, src_dir, files);
@@ -61,8 +54,7 @@ fn lc_validate(
         let mut outcomes = Outcomes::default();
 
         for (current_dir, links) in links {
-            outcomes
-                .merge(linkcheck::validate(&current_dir, links, &ctx).await);
+            outcomes.merge(linkcheck::validate(&current_dir, links, &ctx).await);
         }
 
         outcomes
@@ -90,21 +82,21 @@ fn ensure_included_in_book(
             // Not part of the book.
             Err(_) => return Ok(()),
         };
-        let was_included_in_summary =
-            file_names.iter().any(|summary_path| {
-                let summary_path = Path::new(summary_path);
-                if summary_path.parent() != resolved_link.parent() {
-                    return false;
+        let was_included_in_summary = file_names.iter().any(|summary_path| {
+            let summary_path = Path::new(summary_path);
+            if summary_path.parent() != resolved_link.parent() {
+                return false;
+            }
+            match (summary_path.file_name(), resolved_link.file_name()) {
+                (a, b) if a == b => true,
+                (Some(summary), Some(resolved)) => {
+                    // index preprocessor rewrites summary paths before we get
+                    // to them.
+                    summary == Path::new("index.md") && resolved == Path::new("README.md")
                 }
-                match (summary_path.file_name(), resolved_link.file_name()) {
-                    (a, b) if a == b => true,
-                    (Some(summary), Some(resolved)) => {
-                        // index preprocessor rewrites summary paths before we get to them.
-                        summary == Path::new("index.md") && resolved == Path::new("README.md")
-                    }
-                    _ => false,
-                }
-            });
+                _ => false,
+            }
+        });
         let ext = resolved_link.extension();
         let is_markdown = ext == Some(OsStr::new("md"));
 
@@ -148,8 +140,7 @@ fn collate_links<'a>(
     src_dir: &Path,
     files: &'a Files<String>,
 ) -> impl Iterator<Item = (PathBuf, Vec<linkcheck::Link>)> {
-    let mut links_by_directory: HashMap<PathBuf, Vec<linkcheck::Link>> =
-        HashMap::new();
+    let mut links_by_directory: HashMap<PathBuf, Vec<linkcheck::Link>> = HashMap::new();
 
     for link in links {
         let mut path = src_dir.join(files.name(link.file));
@@ -163,10 +154,7 @@ fn collate_links<'a>(
     links_by_directory.into_iter()
 }
 
-fn merge_outcomes(
-    outcomes: Outcomes,
-    incomplete_links: Vec<IncompleteLink>,
-) -> ValidationOutcome {
+fn merge_outcomes(outcomes: Outcomes, incomplete_links: Vec<IncompleteLink>) -> ValidationOutcome {
     // Note: we want to sort all outcomes by file and then its location in that
     // file.
     //
@@ -183,7 +171,9 @@ fn merge_outcomes(
         });
         items
     }
-    fn sorted_link(items: Vec<Link>) -> Vec<Link> { sorted(items, |link| link) }
+    fn sorted_link(items: Vec<Link>) -> Vec<Link> {
+        sorted(items, |link| link)
+    }
 
     ValidationOutcome {
         invalid_links: sorted(outcomes.invalid, |l| &l.link),
@@ -259,8 +249,7 @@ impl ValidationOutcome {
                 span,
             } = incomplete;
 
-            let msg =
-                format!("Did you forget to define a URL for `{0}`?", reference);
+            let msg = format!("Did you forget to define a URL for `{0}`?", reference);
             let label = Label::primary(*file, *span).with_message(msg);
             let note = format!(
                 "hint: declare the link's URL. For example: `[{}]: http://example.com/`",
@@ -275,18 +264,13 @@ impl ValidationOutcome {
         }
     }
 
-    fn add_invalid_link_diagnostics(
-        &self,
-        diags: &mut Vec<Diagnostic<FileId>>,
-    ) {
+    fn add_invalid_link_diagnostics(&self, diags: &mut Vec<Diagnostic<FileId>>) {
         for broken_link in &self.invalid_links {
             let link = &broken_link.link;
-            let msg = most_specific_error_message(&broken_link);
+            let msg = most_specific_error_message(broken_link);
             let diag = Diagnostic::error()
                 .with_message(msg.clone())
-                .with_labels(vec![
-                    Label::primary(link.file, link.span).with_message(msg)
-                ]);
+                .with_labels(vec![Label::primary(link.file, link.span).with_message(msg)]);
             diags.push(diag);
         }
     }
@@ -300,7 +284,7 @@ impl ValidationOutcome {
         diags: &mut Vec<Diagnostic<FileId>>,
         files: &Files<String>,
     ) {
-        const WARNING_MESSAGE: &'static str = r#"When viewing a document directly from the file system and click on an
+        const WARNING_MESSAGE: &str = r#"When viewing a document directly from the file system and click on an
 absolute link (e.g. `/index.md`), the browser will try to navigate to
 `/index.md` on the current file system (i.e. the `index.md` file inside
 `/` or `C:\`) instead of the `index.md` file at book's base directory as
@@ -339,8 +323,7 @@ For more details, see https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues
                 reasoning_emitted = true;
             }
 
-            if let Some(suggested_change) =
-                relative_path_to_file(files.name(link.file), &link.href)
+            if let Some(suggested_change) = relative_path_to_file(files.name(link.file), &link.href)
             {
                 notes.push(format!(
                     "Suggestion: change the link to \"{}\"",
@@ -389,11 +372,11 @@ where
                 comps.push(a);
                 comps.extend(ita.by_ref());
                 break;
-            },
+            }
             (None, _) => comps.push(Component::ParentDir),
             (Some(a), Some(b)) if comps.is_empty() && a == b => (),
-            (Some(a), Some(b)) if b == Component::CurDir => comps.push(a),
-            (Some(_), Some(b)) if b == Component::ParentDir => return None,
+            (Some(a), Some(Component::CurDir)) => comps.push(a),
+            (Some(_), Some(Component::ParentDir)) => return None,
             (Some(a), Some(_)) => {
                 comps.push(Component::ParentDir);
                 for _ in itb {
@@ -402,7 +385,7 @@ where
                 comps.push(a);
                 comps.extend(ita.by_ref());
                 break;
-            },
+            }
         }
     }
 
@@ -424,25 +407,22 @@ fn most_specific_error_message(link: &InvalidLink) -> String {
     match link.reason {
         Reason::Io(ref io) => io.to_string(),
         Reason::Web(ref web) if web.is_status() => {
-            let status = web.status().expect(
-                "Response::error_for_status() always contains a status code",
-            );
+            let status = web
+                .status()
+                .expect("Response::error_for_status() always contains a status code");
             let url = web
                 .url()
                 .expect("Response::error_for_status() always contains a URL");
 
             match status.canonical_reason() {
-                Some(reason) => format!(
-                    "Server returned {} {} for {}",
-                    status.as_u16(),
-                    reason,
-                    url
-                ),
+                Some(reason) => {
+                    format!("Server returned {} {} for {}", status.as_u16(), reason, url)
+                }
                 None => {
                     format!("Server returned {} for {}", status.as_u16(), url)
-                },
+                }
             }
-        },
+        }
         Reason::Web(ref web) => web.to_string(),
         // fall back to the Reason's Display impl
         _ => link.reason.to_string(),
