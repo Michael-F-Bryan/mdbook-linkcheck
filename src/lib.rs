@@ -28,6 +28,7 @@ pub const COMPATIBLE_MDBOOK_VERSIONS: &str = "^0.4.0";
 mod config;
 mod context;
 mod hashed_regex;
+mod latex;
 mod links;
 mod validate;
 
@@ -153,11 +154,10 @@ where
         match item {
             BookItem::Chapter(ref ch) => {
                 if let Some(ref path) = ch.path {
-                    if filter(&path) {
-                        let id = dest.add(
-                            path.display().to_string(),
-                            ch.content.clone(),
-                        );
+                    if filter(path) {
+                        let path_str = path.display().to_string();
+                        let content = ch.content.clone();
+                        let id = dest.add(path_str, content);
                         ids.push(id);
                     }
                 }
@@ -194,11 +194,11 @@ where
     F: Fn(&Path) -> bool,
 {
     log::info!("Scanning book for links");
-    let mut files = Files::new();
+    let mut files: Files<String> = Files::new();
     let file_ids =
         crate::load_files_into_memory(&ctx.book, &mut files, file_filter);
     let (links, incomplete_links) =
-        crate::extract_links(file_ids.clone(), &files);
+        crate::extract_links(cfg, file_ids.clone(), &files);
     log::info!(
         "Found {} links ({} incomplete links)",
         links.len(),
