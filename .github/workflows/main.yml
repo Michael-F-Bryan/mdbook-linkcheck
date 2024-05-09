@@ -1,4 +1,8 @@
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+    - master
 
 name: Continuous integration
 
@@ -10,28 +14,24 @@ jobs:
         rust:
           - nightly
           - stable
-          # MSRV - Required for "an unknown tool name found in scoped lint: `rustdoc::broken_intra_doc_links`"
-          - 1.52.1
+          # MSRV - Required by the build-info crate
+          - 1.70.0
         os:
           - ubuntu-latest
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --verbose
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --verbose
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --verbose
+      - name: Install Nextest
+        uses: taiki-e/install-action@nextest
+      - name: Type Checking
+        run: cargo check --workspace --verbose --locked
+      - name: Build
+        run: cargo build --workspace --verbose --locked
+      - name: Test
+        run: cargo nextest run --workspace --verbose --locked
+      - name: Doc Tests
+        run: cargo test --doc --workspace --verbose --locked

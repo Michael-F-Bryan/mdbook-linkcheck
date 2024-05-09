@@ -141,8 +141,7 @@ fn emit_valid_suggestions_on_absolute_links() {
 
     TestRun::new(root)
         .after_validation(|files, outcome, _| {
-            let diags =
-                outcome.generate_diagnostics(files, WarningPolicy::Error);
+            let diags = outcome.generate_diagnostics(files, WarningPolicy::Error);
 
             let suggestions = vec![
                 "\"chapter_1.md\"",
@@ -151,9 +150,7 @@ fn emit_valid_suggestions_on_absolute_links() {
             ];
             assert_eq!(suggestions.len(), diags.len());
 
-            for (diag, suggestion) in
-                diags.into_iter().zip(suggestions.into_iter())
-            {
+            for (diag, suggestion) in diags.into_iter().zip(suggestions.into_iter()) {
                 assert!(
                     diag.notes.iter().any(|note| note.contains(suggestion)),
                     "It should have suggested {} for {:?}",
@@ -237,11 +234,9 @@ where
     R: IntoIterator<Item = Q>,
     Q: AsRef<str>,
 {
-    let mut left: Vec<_> =
-        left.into_iter().map(|s| s.as_ref().to_string()).collect();
+    let mut left: Vec<_> = left.into_iter().map(|s| s.as_ref().to_string()).collect();
     left.sort();
-    let mut right: Vec<_> =
-        right.into_iter().map(|s| s.as_ref().to_string()).collect();
+    let mut right: Vec<_> = right.into_iter().map(|s| s.as_ref().to_string()).collect();
     right.sort();
 
     assert_eq!(left, right);
@@ -250,8 +245,7 @@ where
 struct TestRun {
     config: Config,
     root: PathBuf,
-    after_validation:
-        Box<dyn Fn(&Files<String>, &ValidationOutcome, &Vec<FileId>)>,
+    after_validation: Box<dyn Fn(&Files<String>, &ValidationOutcome, &Vec<FileId>)>,
     validation_outcome: Cell<Option<ValidationOutcome>>,
 }
 
@@ -326,16 +320,9 @@ impl Renderer for TestRun {
 
         let noop_filter = |_: &Path| true;
 
-        let file_ids = mdbook_linkcheck::load_files_into_memory(
-            &ctx.book,
-            &mut files,
-            noop_filter,
-        );
-        let (links, incomplete) = mdbook_linkcheck::extract_links(
-            &self.config,
-            file_ids.clone(),
-            &files,
-        );
+        let file_ids = mdbook_linkcheck::load_files_into_memory(&ctx.book, &mut files, noop_filter);
+        let (links, incomplete) =
+            mdbook_linkcheck::extract_links(&self.config, file_ids.clone(), &files);
 
         let mut cache = Cache::default();
         let outcome = mdbook_linkcheck::validate(
@@ -359,9 +346,6 @@ fn run_link_checker(root: &Path) -> Result<ValidationOutcome, Error> {
     TestRun::new(root).execute()
 }
 
-fn run_link_checker_with_config(
-    root: &Path,
-    config: Config,
-) -> Result<ValidationOutcome, Error> {
+fn run_link_checker_with_config(root: &Path, config: Config) -> Result<ValidationOutcome, Error> {
     TestRun::new_with_config(root, config).execute()
 }

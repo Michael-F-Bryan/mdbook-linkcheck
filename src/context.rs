@@ -1,43 +1,38 @@
 use crate::{Config, HashedRegex};
-use codespan::Files;
 use http::header::{HeaderMap, HeaderName, HeaderValue};
 use linkcheck::{
     validation::{Cache, Options},
     Link,
 };
 use reqwest::{Client, Url};
-use std::{
-    path::Path,
-    sync::{Mutex, MutexGuard},
-};
+use std::sync::{Mutex, MutexGuard};
 
 /// The [`linkcheck::validation::Context`].
 #[derive(Debug)]
 pub struct Context<'a> {
     pub(crate) cfg: &'a Config,
-    pub(crate) src_dir: &'a Path,
     pub(crate) cache: Mutex<Cache>,
-    pub(crate) files: &'a Files<String>,
     pub(crate) client: Client,
     pub(crate) filesystem_options: Options,
-    pub(crate) interpolated_headers:
-        Vec<(HashedRegex, Vec<(HeaderName, HeaderValue)>)>,
+    pub(crate) interpolated_headers: Vec<(HashedRegex, Vec<(HeaderName, HeaderValue)>)>,
 }
 
 impl<'a> linkcheck::validation::Context for Context<'a> {
-    fn client(&self) -> &Client { &self.client }
+    fn client(&self) -> &Client {
+        &self.client
+    }
 
-    fn filesystem_options(&self) -> &Options { &self.filesystem_options }
+    fn filesystem_options(&self) -> &Options {
+        &self.filesystem_options
+    }
 
     fn cache(&self) -> Option<MutexGuard<Cache>> {
         Some(self.cache.lock().expect("Lock was poisoned"))
     }
 
     fn should_ignore(&self, link: &Link) -> bool {
-        if !self.cfg.follow_web_links {
-            if let Ok(_) = link.href.parse::<Url>() {
-                return true;
-            }
+        if !self.cfg.follow_web_links && link.href.parse::<Url>().is_ok() {
+            return true;
         }
 
         self.cfg

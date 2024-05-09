@@ -2,20 +2,20 @@
 name = "xtask"
 version = "0.1.0"
 authors = ["Michael-F-Bryan <michaelfbryan@gmail.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
 build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.38"
-build-info = "0.0.21"
-env_logger = "0.8.3"
+anyhow = "1"
+build-info = "0.0.36"
+env_logger = "0.11"
 log = "0.4.14"
-once_cell = "1.7.0"
+once_cell = "1"
 structopt = "0.3.21"
-zip = "0.5.10"
+zip = "1"
 
 [build-dependencies]
-build-info-build = "0.0.21"
+build-info-build = "0.0.36"

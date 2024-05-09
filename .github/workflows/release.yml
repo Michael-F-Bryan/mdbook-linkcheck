@@ -31,9 +31,8 @@ jobs:
             asset_name: mdbook-linkcheck-macos
     steps:
     - uses: actions/checkout@v1
-    - uses: actions-rs/toolchain@v1
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        profile: minimal
         toolchain: stable
     - name: Build
       run: cargo xtask dist

@@ -60,11 +60,15 @@ impl<'de> Deserialize<'de> for HashedRegex {
 }
 
 impl Hash for HashedRegex {
-    fn hash<H: Hasher>(&self, state: &mut H) { self.string.hash(state); }
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.string.hash(state);
+    }
 }
 
 impl PartialEq for HashedRegex {
-    fn eq(&self, other: &Self) -> bool { self.string == other.string }
+    fn eq(&self, other: &Self) -> bool {
+        self.string == other.string
+    }
 }
 
 impl Eq for HashedRegex {}
@@ -72,11 +76,15 @@ impl Eq for HashedRegex {}
 impl FromStr for HashedRegex {
     type Err = regex::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> { HashedRegex::new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        HashedRegex::new(s)
+    }
 }
 
 impl Deref for HashedRegex {
     type Target = regex::Regex;
 
-    fn deref(&self) -> &regex::Regex { &self.re }
+    fn deref(&self) -> &regex::Regex {
+        &self.re
+    }
 }
