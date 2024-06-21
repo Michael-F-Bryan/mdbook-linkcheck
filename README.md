@@ -101,7 +101,7 @@ cache-timeout = 43200
 #   the linkcheck to continuing
 warning-policy = "warn"
 
-# Extra HTTP headers that must be send to certain web sites
+# Extra HTTP headers that must be sent to certain web sites
 # in order to link check to succeed.
 #
 # This is a dictionary (map), with keys being regexes
