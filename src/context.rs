@@ -1,5 +1,4 @@
 use crate::{Config, HashedRegex};
-use codespan::Files;
 use http::header::{HeaderMap, HeaderName, HeaderValue};
 use linkcheck::{
     validation::{Cache, Options},
@@ -7,7 +6,6 @@ use linkcheck::{
 };
 use reqwest::{Client, Url};
 use std::{
-    path::Path,
     sync::{Mutex, MutexGuard},
 };
 
@@ -15,9 +13,7 @@ use std::{
 #[derive(Debug)]
 pub struct Context<'a> {
     pub(crate) cfg: &'a Config,
-    pub(crate) src_dir: &'a Path,
     pub(crate) cache: Mutex<Cache>,
-    pub(crate) files: &'a Files<String>,
     pub(crate) client: Client,
     pub(crate) filesystem_options: Options,
     pub(crate) interpolated_headers:
@@ -29,16 +25,15 @@ impl<'a> linkcheck::validation::Context for Context<'a> {
 
     fn filesystem_options(&self) -> &Options { &self.filesystem_options }
 
-    fn cache(&self) -> Option<MutexGuard<Cache>> {
+    fn cache(&self) -> Option<MutexGuard<'_, Cache>> {
         Some(self.cache.lock().expect("Lock was poisoned"))
     }
 
     fn should_ignore(&self, link: &Link) -> bool {
-        if !self.cfg.follow_web_links {
-            if let Ok(_) = link.href.parse::<Url>() {
+        if !self.cfg.follow_web_links
+            && link.href.parse::<Url>().is_ok() {
                 return true;
             }
-        }
 
         self.cfg
             .exclude

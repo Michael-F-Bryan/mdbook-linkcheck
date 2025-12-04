@@ -93,7 +93,7 @@ pub fn run(
         }
     };
 
-    let (files, outcome) = check_links(&ctx, &mut cache, &cfg, file_filter)?;
+    let (files, outcome) = check_links(ctx, &mut cache, &cfg, file_filter)?;
     let diags = outcome.generate_diagnostics(&files, cfg.warning_policy);
     report_errors(&files, &diags, colour)?;
 
@@ -206,7 +206,7 @@ where
         .context("Unable to resolve the source directory")?;
     let outcome = crate::validate(
         &links,
-        &cfg,
+        cfg,
         &src,
         cache,
         &files,

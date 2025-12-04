@@ -49,9 +49,7 @@ fn lc_validate(
         client: cfg.client(),
         filesystem_options: options,
         cfg,
-        src_dir,
         cache: Mutex::new(cache.clone()),
-        files,
         interpolated_headers,
     };
     let links = collate_links(links, src_dir, files);
@@ -111,10 +109,9 @@ fn ensure_included_in_book(
         if was_included_in_summary || !is_markdown {
             Ok(())
         } else {
-            use std::io::{Error, ErrorKind};
+            use std::io::Error;
 
-            Err(Reason::Io(Error::new(
-                ErrorKind::Other,
+            Err(Reason::Io(Error::other(
                 NotInSummary {
                     path: resolved_link.to_path_buf(),
                 },
@@ -281,7 +278,7 @@ impl ValidationOutcome {
     ) {
         for broken_link in &self.invalid_links {
             let link = &broken_link.link;
-            let msg = most_specific_error_message(&broken_link);
+            let msg = most_specific_error_message(broken_link);
             let diag = Diagnostic::error()
                 .with_message(msg.clone())
                 .with_labels(vec![
@@ -300,7 +297,7 @@ impl ValidationOutcome {
         diags: &mut Vec<Diagnostic<FileId>>,
         files: &Files<String>,
     ) {
-        const WARNING_MESSAGE: &'static str = r#"When viewing a document directly from the file system and click on an
+        const WARNING_MESSAGE: &str = r#"When viewing a document directly from the file system and click on an
 absolute link (e.g. `/index.md`), the browser will try to navigate to
 `/index.md` on the current file system (i.e. the `index.md` file inside
 `/` or `C:\`) instead of the `index.md` file at book's base directory as
@@ -392,8 +389,8 @@ where
             },
             (None, _) => comps.push(Component::ParentDir),
             (Some(a), Some(b)) if comps.is_empty() && a == b => (),
-            (Some(a), Some(b)) if b == Component::CurDir => comps.push(a),
-            (Some(_), Some(b)) if b == Component::ParentDir => return None,
+            (Some(a), Some(Component::CurDir)) => comps.push(a),
+            (Some(_), Some(Component::ParentDir)) => return None,
             (Some(a), Some(_)) => {
                 comps.push(Component::ParentDir);
                 for _ in itb {
