@@ -1,9 +1,13 @@
+// False positive: HashedRegex is safe as HashMap key (Hash/Eq based on string, not interior mutability)
+// Locally disabling this lint below, unfortunately, does not work.
+#![allow(clippy::mutable_key_type)]
+
 use crate::hashed_regex::HashedRegex;
 use anyhow::Error;
 use http::header::{HeaderName, HeaderValue};
 use log::Level;
 use reqwest::Client;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -173,9 +177,9 @@ impl TryFrom<String> for HttpHeader {
     }
 }
 
-impl Into<String> for HttpHeader {
-    fn into(self) -> String {
-        let HttpHeader { name, value, .. } = self;
+impl From<HttpHeader> for String {
+    fn from(val: HttpHeader) -> Self {
+        let HttpHeader { name, value, .. } = val;
         format!("{}: {}", name, value)
     }
 }
@@ -252,10 +256,12 @@ fn interpolate_env(value: &str) -> Result<HeaderValue, Error> {
 /// How should warnings be treated?
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum WarningPolicy {
     /// Silently ignore them.
     Ignore,
     /// Warn the user, but don't fail the linkcheck.
+    #[default]
     Warn,
     /// Treat warnings as errors.
     Error,
@@ -271,9 +277,6 @@ impl WarningPolicy {
     }
 }
 
-impl Default for WarningPolicy {
-    fn default() -> WarningPolicy { WarningPolicy::Warn }
-}
 
 #[cfg(test)]
 mod tests {
