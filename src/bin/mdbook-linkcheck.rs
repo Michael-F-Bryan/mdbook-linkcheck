@@ -1,6 +1,7 @@
 use anyhow::{Context, Error};
 use codespan_reporting::term::termcolor::ColorChoice;
-use mdbook::{renderer::RenderContext, MDBook};
+use mdbook_driver::MDBook;
+use mdbook_renderer::RenderContext;
 use std::{io, path::PathBuf};
 use structopt::StructOpt;
 
@@ -76,14 +77,14 @@ fn parse_colour(raw: &str) -> Result<ColorChoice, Error> {
     }
 }
 
-fn to_sync(err: mdbook::errors::Error) -> Error {
+fn to_sync(err: mdbook_renderer::errors::Error) -> Error {
     use std::{
         fmt::{self, Display, Formatter},
         sync::Mutex,
     };
 
     #[derive(Debug)]
-    struct Synchronised(Mutex<mdbook::errors::Error>);
+    struct Synchronised(Mutex<mdbook_renderer::errors::Error>);
 
     impl Display for Synchronised {
         fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
